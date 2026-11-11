@@ -481,6 +481,9 @@ class Dialogs:
         bold = fonts.FONTS.get("bold")
         self.centered("Nimcale", theme.LILAC, bold, imgui.get_font_size() * 2.2)
         self.centered(tr("about.version", v=__version__), theme.TEXT_DIM)
+        from nimcale import IS_TEST_BUILD
+        if IS_TEST_BUILD:
+            self.centered("%s  %s" % (fa.ICON_FA_FLASK, tr("beta.about")), theme.WARN)
         imgui.dummy(imgui.ImVec2(1, 4))
         imgui.push_text_wrap_pos(0)
         imgui.text_unformatted(tr("about.description"))
@@ -505,7 +508,7 @@ class Dialogs:
     SHORTCUTS = [
         ("sc.group_files", None),
         ("Ctrl+T", "sc.imp_tex"), ("Ctrl+M", "sc.imp_hm"), ("Ctrl+O", "sc.imp_both"),
-        ("Ctrl+Shift+O", "sc.open_project"), ("Ctrl+S", "sc.save_project"), ("Ctrl+E", "sc.export"),
+        ("Ctrl+Shift+U", "sc.imp_surface"), ("Ctrl+Shift+O", "sc.open_project"), ("Ctrl+S", "sc.save_project"), ("Ctrl+E", "sc.export"),
         ("Ctrl+Shift+E", "sc.quick_stl"), ("P / Ctrl+P", "sc.screenshot"), ("G / Ctrl+L", "sc.align_io"),
         ("sc.group_edit", None),
         ("Ctrl+Z", "sc.undo"), ("Ctrl+Y / Ctrl+Shift+Z", "sc.redo"), ("R", "sc.reset_all"), ("K", "sc.sculpt"),
@@ -543,7 +546,7 @@ class Dialogs:
 
     def tab_guide(self):
         imgui.push_text_wrap_pos(0)
-        for i in range(1, 8):
+        for i in range(1, 10):
             k = "guide.%d" % i
             imgui.text_colored(theme.v4(theme.PINK), "%d." % i)
             imgui.same_line()

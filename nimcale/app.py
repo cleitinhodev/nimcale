@@ -146,6 +146,9 @@ class NimcaleApp:
             else:
                 self.load_sample(surf, commit=False)
         self._committed = self.snapshot()
+        from nimcale import IS_TEST_BUILD
+        if IS_TEST_BUILD:
+            self.say(tr("beta.notice"), "warn")
 
     def auto_outline_for_new_image(self):
         """A new image is not the default coin: follow the object's own outline (detected background)

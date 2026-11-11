@@ -72,6 +72,7 @@ class Panels:
             tabs = (("tab.model", fa.ICON_FA_MOUNTAIN, self.tab_model),
                     ("tab.shape", fa.ICON_FA_COINS, self.tab_shape),
                     ("tab.texture", fa.ICON_FA_IMAGE, self.tab_texture),
+                    ("tab.surface", fa.ICON_FA_CUBE, self.tab_surface),
                     ("tab.sculpt", fa.ICON_FA_PAINTBRUSH, self.tab_sculpt),
                     ("tab.scene", fa.ICON_FA_LIGHTBULB, self.tab_scene))
             cur = getattr(self, "cur_tab", "tab.model")
@@ -321,6 +322,157 @@ class Panels:
         imgui.image(imgui.ImTextureRef(t.glo), imgui.ImVec2(iw, iw * asp))
         W.tooltip(tr("tip.outline_preview"))
 
+    # ------------------------------------------------------------------ surface (imported 3D model)
+    SAMPLE_ICONS = dict(cup=fa.ICON_FA_MUG_SAUCER, mug=fa.ICON_FA_MUG_HOT, bottle=fa.ICON_FA_WINE_BOTTLE,
+                        vase=fa.ICON_FA_JAR, ball=fa.ICON_FA_FUTBOL, box=fa.ICON_FA_CUBE, can=fa.ICON_FA_DATABASE,
+                        plate=fa.ICON_FA_CIRCLE, tag=fa.ICON_FA_TAG, slab=fa.ICON_FA_MOBILE_SCREEN,
+                        pen_holder=fa.ICON_FA_PEN, lamp_shade=fa.ICON_FA_LIGHTBULB)
+
+    def sample_grid(self):
+        from nimcale.core.surface import SAMPLES
+        app = self.app
+        avail = imgui.get_content_region_avail().x
+        cols = 3 if avail > 200 else 2
+        bw = (avail - 4 * (cols - 1)) / cols
+        for i, s in enumerate(SAMPLES):
+            if i % cols:
+                imgui.same_line(0, 4)
+            sel = app.surface is not None and getattr(app.surface, "sample", None) == s
+            if sel:
+                imgui.push_style_color(imgui.Col_.button, theme.v4((0.62, 0.22, 0.72), 1.0))
+            label = "%s  %s##smp_%s" % (self.SAMPLE_ICONS.get(s, fa.ICON_FA_CUBE), tr("sample." + s), s)
+            if imgui.button(label, imgui.ImVec2(bw, 28)):
+                app.pending.append("sample:" + s)
+            if sel:
+                imgui.pop_style_color()
+            W.tooltip(tr("tip.sample"))
+
+    def tab_surface(self):
+        from nimcale.core.surface import PROJECTIONS, AXES
+        app, p = self.app, self.app.params
+        m = app.surface
+        imgui.push_text_wrap_pos(0)
+        if m is None:
+            theme.section_title(tr("srf.title"), fa.ICON_FA_CUBE)
+            W.label(tr("srf.intro"))
+            imgui.dummy(imgui.ImVec2(1, 4))
+            imgui.push_style_color(imgui.Col_.button, theme.v4((0.62, 0.22, 0.72), 1.0))
+            if W.wide_button("%s  %s" % (fa.ICON_FA_FILE_IMPORT, tr("act.imp_surface")), "imp_srf", height=32):
+                app.pending.append("imp_surface")
+            imgui.pop_style_color()
+            W.label(tr("srf.formats"))
+            theme.section_title(tr("srf.samples"), fa.ICON_FA_SHAPES)
+            self.sample_grid()
+            imgui.pop_text_wrap_pos()
+            return
+        sr = app.surface_result
+        # ---- model card
+        theme.section_title(tr("srf.title"), fa.ICON_FA_CUBE)
+        name = tr("sample." + m.sample) if getattr(m, "sample", None) else m.name
+        imgui.text_colored(theme.v4(theme.LILAC), name)
+        W.label(tr("srf.info", tris="{:,}".format(m.n_faces).replace(",", "."), parts=m.parts))
+        if m.watertight:
+            imgui.text_colored(theme.v4(theme.OK), "%s  %s" % (fa.ICON_FA_CIRCLE_CHECK, tr("srf.closed")))
+        else:
+            imgui.text_colored(theme.v4(theme.WARN), "%s  %s" % (fa.ICON_FA_TRIANGLE_EXCLAMATION, tr("srf.open")))
+        avail = imgui.get_content_region_avail().x
+        bw = (avail - 6) / 2
+        if imgui.button("%s  %s##srf_change" % (fa.ICON_FA_FOLDER_OPEN, tr("act.change_surface")), imgui.ImVec2(bw, 28)):
+            app.pending.append("imp_surface")
+        imgui.same_line(0, 6)
+        if imgui.button("%s  %s##srf_samples" % (fa.ICON_FA_SHAPES, tr("srf.samples")), imgui.ImVec2(bw, 28)):
+            imgui.open_popup("##samples_pop")
+        if imgui.begin_popup("##samples_pop"):
+            self.sample_grid()
+            imgui.end_popup()
+        imgui.push_style_color(imgui.Col_.button, theme.v4((0.55, 0.12, 0.30), 1.0))
+        imgui.push_style_color(imgui.Col_.button_hovered, theme.v4((0.75, 0.18, 0.40), 1.0))
+        if W.wide_button("%s  %s" % (fa.ICON_FA_CIRCLE_XMARK, tr("act.remove_surface")), "rm_srf", height=30,
+                         tip=tr("tip.remove_surface")):
+            app.pending.append("remove_surface")
+        imgui.pop_style_color(2)
+        # ---- projection
+        if header(tr("srf.sec_projection"), fa.ICON_FA_LAYER_GROUP):
+            W.label(tr("srf.projection"))
+            imgui.set_next_item_width(-1)
+            idx = PROJECTIONS.index(p.srf_proj) if p.srf_proj in PROJECTIONS else 0
+            ch, ni = imgui.combo("##srf_proj", idx, [tr("proj." + x) for x in PROJECTIONS])
+            W.tooltip(tr("tip.projection"))
+            if ch and ni != idx:
+                p.srf_proj = PROJECTIONS[ni]
+                if p.srf_proj in ("planar", "decal") and p.srf_axis in ("top", "bottom"):
+                    p.srf_axis = "front"
+                elif p.srf_proj in ("cylinder", "sphere") and p.srf_axis not in ("top", "bottom", "left", "front"):
+                    p.srf_axis = "top"
+            if sr is not None and p.srf_proj == "auto":
+                W.label(tr("srf.detected", mode=tr("proj." + sr.mode),
+                           axis=tr("axis." + sr.axis) if sr.mode not in ("uv", "box") else "-"))
+            if p.srf_proj in ("cylinder", "sphere", "planar", "decal"):
+                key = "srf.axis_cyl" if p.srf_proj in ("cylinder", "sphere") else "srf.axis_dir"
+                W.label(tr(key))
+                imgui.set_next_item_width(-1)
+                ai = AXES.index(p.srf_axis) if p.srf_axis in AXES else 0
+                ch, na = imgui.combo("##srf_axis", ai, [tr("axis." + x) for x in AXES])
+                if ch:
+                    p.srf_axis = AXES[na]
+            if p.srf_proj == "uv" and not m.has_uv:
+                imgui.text_colored(theme.v4(theme.WARN), tr("srf.no_uv"))
+            p.srf_tile = W.checkbox("srf_tile", tr("srf.tile"), p.srf_tile, tip=tr("tip.srf_tile"))
+            p.srf_mirror = W.checkbox("srf_mirror", tr("srf.mirror"), p.srf_mirror)
+            p.srf_use_cut = W.checkbox("srf_cut", tr("srf.use_cut"), p.srf_use_cut, tip=tr("tip.srf_use_cut"))
+        # ---- placement of the image
+        if header(tr("srf.sec_place"), fa.ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT):
+            p.srf_ou = W.slider("srf_ou", tr("srf.offset_u"), p.srf_ou, -1.0, 1.0, 0.0, "%+.3f", tip=tr("tip.srf_offset"))
+            p.srf_ov = W.slider("srf_ov", tr("srf.offset_v"), p.srf_ov, -1.0, 1.0, 0.0, "%+.3f", tip=tr("tip.srf_offset"))
+            p.srf_scale = W.slider("srf_scale", tr("srf.scale"), p.srf_scale, 0.05, 4.0, 1.0, "%.3f", log=True,
+                                   tip=tr("tip.srf_scale"))
+            p.srf_lock = W.checkbox("srf_lock", tr("srf.lock"), p.srf_lock)
+            p.srf_sx = W.slider("srf_sx", tr("srf.prop_x"), p.srf_sx, 0.2, 5.0, 1.0, "%.3f", log=True)
+            if not p.srf_lock:
+                p.srf_sy = W.slider("srf_sy", tr("srf.prop_y"), p.srf_sy, 0.2, 5.0, 1.0, "%.3f", log=True)
+            p.srf_rot = W.slider("srf_rot", tr("srf.rotation"), p.srf_rot, -180.0, 180.0, 0.0, "%+.1f°")
+            if (sr.mode if sr is not None else p.srf_proj) in ("cylinder", "sphere"):
+                p.srf_seam = W.slider("srf_seam", tr("srf.seam"), p.srf_seam, -180.0, 180.0, 0.0, "%+.0f°",
+                                      tip=tr("tip.srf_seam"))
+            if W.wide_button("%s  %s" % (fa.ICON_FA_ARROWS_ROTATE, tr("srf.reset_place")), "srf_reset_place"):
+                d = ModelParams()
+                for k in ("srf_ou", "srf_ov", "srf_scale", "srf_sx", "srf_sy", "srf_lock", "srf_rot", "srf_seam",
+                          "srf_mirror"):
+                    setattr(p, k, getattr(d, k))
+        # ---- relief on the surface
+        if header(tr("srf.sec_relief"), fa.ICON_FA_MOUNTAIN):
+            mm = p.size_mm
+            dmm = W.slider("srf_depth", tr("srf.relief_mm"), p.depth * mm, 0.0, 10.0, D.depth * 40.0, "%.2f mm",
+                           tip=tr("tip.srf_relief"))
+            if dmm != p.depth * mm:
+                p.depth = dmm / mm
+            p.invert = W.checkbox("srf_inv", tr("p.invert"), p.invert)
+            p.blur = W.slider("srf_blur", tr("p.blur"), p.blur, 0.0, 12.0, D.blur, "%.1f px")
+            p.srf_detail = W.slider("srf_detail", tr("srf.detail"), p.srf_detail, 60, 900, D.srf_detail, "%d",
+                                    integer=True, tip=tr("tip.srf_detail"))
+            if sr is not None:
+                W.label(tr("srf.density", tris="{:,}".format(sr.n_tris).replace(",", "."), hd=app.cfg.hd_nodes))
+        # ---- the model itself
+        if header(tr("srf.sec_model"), fa.ICON_FA_CUBE, default_open=False):
+            ups = ("auto", "z", "y", "x")
+            W.label(tr("srf.up"))
+            imgui.set_next_item_width(-1)
+            ui = ups.index(p.srf_up) if p.srf_up in ups else 0
+            ch, nu = imgui.combo("##srf_up", ui, [tr("srf.up_" + u) for u in ups])
+            if ch:
+                p.srf_up = ups[nu]
+            p.srf_size = W.slider("srf_size", tr("srf.size"), p.srf_size, 5.0, 500.0, m.default_size(), "%.1f mm",
+                                  log=True, tip=tr("tip.srf_size"))
+            for ax in ("x", "y", "z"):
+                k = "srf_r" + ax
+                setattr(p, k, W.slider(k, tr("srf.rot_" + ax), getattr(p, k), -180.0, 180.0, 0.0, "%+.0f°"))
+            ch, col = imgui.color_edit3("%s##srf_col" % tr("srf.color"), [p.srf_r, p.srf_g, p.srf_b],
+                                        imgui.ColorEditFlags_.no_inputs)
+            if ch:
+                p.srf_r, p.srf_g, p.srf_b = (float(c) for c in col)
+            W.tooltip(tr("tip.srf_color"))
+        imgui.pop_text_wrap_pos()
+
     # ------------------------------------------------------------------ texture
     def tab_texture(self):
         app, p, v = self.app, self.app.params, self.app.view
@@ -498,12 +650,21 @@ class Panels:
             ny, nx = st["cells"]
             n = st["tris"]
             hd = app.cfg.hd_nodes
-            W.kv_table("##mesh", [
-                (tr("m.preview"), "{:,}".format(n).replace(",", ".")),
-                (tr("m.grid"), "%d x %d" % (nx, ny)),
-                (tr("m.hd_estimate", n=hd), "~{:,}".format(int(n * (hd / float(max(nx, ny))) ** 2)).replace(",", "."),
-                 theme.PINK),
-            ])
+            if st.get("surface"):
+                est = min(4_000_000, int(n * (hd / float(max(60, app.params.srf_detail))) ** 2))
+                W.kv_table("##mesh", [
+                    (tr("m.preview"), "{:,}".format(n).replace(",", ".")),
+                    (tr("m.surface"), tr("sample." + app.surface.sample) if getattr(app.surface, "sample", None)
+                     else (app.surface.name or "-")),
+                    (tr("m.hd_estimate", n=hd), "~{:,}".format(est).replace(",", "."), theme.PINK),
+                ])
+            else:
+                W.kv_table("##mesh", [
+                    (tr("m.preview"), "{:,}".format(n).replace(",", ".")),
+                    (tr("m.grid"), "%d x %d" % (nx, ny)),
+                    (tr("m.hd_estimate", n=hd), "~{:,}".format(int(n * (hd / float(max(nx, ny))) ** 2)).replace(",", "."),
+                     theme.PINK),
+                ])
         theme.section_title(tr("sec.history"), fa.ICON_FA_CLOCK_ROTATE_LEFT)
         avail = imgui.get_content_region_avail().x
         bw = (avail - 8) / 2

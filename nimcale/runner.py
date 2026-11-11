@@ -260,6 +260,13 @@ class Runner:
     def params(self):
         rp = hello_imgui.RunnerParams()
         rp.app_window_params.window_title = "%s %s" % (APP_NAME, __version__)
+        from nimcale import IS_TEST_BUILD
+        if IS_TEST_BUILD:
+            try:
+                from nimcale.i18n import tr
+                rp.app_window_params.window_title += " - " + tr("beta.badge")
+            except Exception:
+                pass
         w, h = self.args.size
         rp.app_window_params.window_geometry.size = (w, h)
         set_opt(rp.app_window_params, "restore_previous_geometry", not self.args.shot)
