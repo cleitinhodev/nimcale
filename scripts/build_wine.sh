@@ -7,10 +7,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 WINPY="${WINPY:-C:/nimcale_venv/Scripts/python.exe}"
+WINE="${WINE:-wine}"   # e.g. WINE=/opt/wine/bin/wine64
 export WINEDEBUG=-all
 python3 scripts/fetch_mesa.py
 rm -rf build/Nimcale dist/Nimcale
-wine "$WINPY" -m PyInstaller --noconfirm --clean nimcale.spec
+"$WINE" "$WINPY" -m PyInstaller --noconfirm --clean nimcale.spec
 VER=$(python3 -c "import nimcale; print(nimcale.__version__)")
 ZIP="dist/Nimcale-${VER}-windows-x64.zip"
 rm -f "$ZIP"
