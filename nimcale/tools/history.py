@@ -3,9 +3,10 @@
 
 
 class Snapshot:
-    __slots__ = ("params", "sculpt", "tex", "hm", "label")
+    __slots__ = ("params", "sculpt", "tex", "hm", "label", "surface")
 
-    def __init__(self, params, sculpt, tex, hm, label=""):
+    def __init__(self, params, sculpt, tex, hm, label="", surface=None):
+        self.surface = surface        # imported 3D model of the surface layer (None = normal plate)
         self.params = params.copy()
         self.sculpt = sculpt          # arrays are never modified in place after a snapshot (copy-on-write)
         self.tex = tex
@@ -14,7 +15,7 @@ class Snapshot:
 
     def same(self, other):
         return (other is not None and self.params.key() == other.params.key() and self.sculpt is other.sculpt
-                and self.tex is other.tex and self.hm is other.hm)
+                and self.tex is other.tex and self.hm is other.hm and self.surface is other.surface)
 
 
 class History:

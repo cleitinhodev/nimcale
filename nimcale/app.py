@@ -26,6 +26,10 @@ DEFAULT_TEX = paths.asset("defaults", "nimcale_textura.png")
 DEFAULT_HM = paths.asset("defaults", "nimcale_relevo.webp")
 
 
+def sample_path(name):
+    return paths.asset("samples", name + ".ply")
+
+
 def coin_defaults(p):
     """The default Nimcale coin look (mix view + object cutout, circular outline)."""
     p.cutout = True
@@ -51,6 +55,10 @@ class NimcaleApp:
         self.view = ViewParams()
         self.hm = None
         self.tex = None
+        self.surface = None              # imported 3D model (surface layer); None = normal plate / coin
+        self.surface_builder = None
+        self.surface_result = None
+        self._surface_uploaded = None
         self.pipeline = Pipeline()
         self.sculptor = Sculptor()
         self.history = History()
@@ -97,6 +105,9 @@ class NimcaleApp:
 
     def toggle_sculpt(self, on=None):
         on = (self.tool != "sculpt") if on is None else on
+        if on and self.surface is not None:
+            self.say(tr("msg.sculpt_plate_only"), "warn")
+            on = False
         self.tool = "sculpt" if on else "orbit"
         if on:
             self.props_tab_req = "sculpt"
@@ -128,6 +139,12 @@ class NimcaleApp:
         self.refit_shape(quiet=True)
         if a.project:
             self.open_project(a.project)
+        surf = getattr(a, "surface", None)
+        if surf:
+            if os.path.isfile(surf):
+                self.import_surface(surf, commit=False)
+            else:
+                self.load_sample(surf, commit=False)
         self._committed = self.snapshot()
 
     def auto_outline_for_new_image(self):
@@ -204,6 +221,67 @@ class NimcaleApp:
         self.dirty = True
         return True
 
+    # ======================================================================== surface layer
+    def import_surface(self, path, commit=True, sample=None):
+        """Import a 3D model: the texture + relief are applied onto it (the plate settings are kept)."""
+        from nimcale.core import surface as srf
+        try:
+            m = srf.load_surface(path)
+        except Exception as e:
+            traceback.print_exc()
+            self.say(tr("msg.surface_error", err=str(e)), "error")
+            return False
+        if commit:
+            self.commit_now()
+        p = self.params
+        d = ModelParams()
+        for k in ("srf_proj", "srf_axis", "srf_ou", "srf_ov", "srf_scale", "srf_sx", "srf_sy", "srf_lock", "srf_rot",
+                  "srf_seam", "srf_tile", "srf_mirror", "srf_use_cut", "srf_up", "srf_rx", "srf_ry", "srf_rz"):
+            setattr(p, k, getattr(d, k))
+        p.srf_size = round(m.default_size(), 1)
+        m.sample = sample
+        self.surface = m
+        self.surface_builder = None
+        if self.tool == "sculpt":
+            self.toggle_sculpt(False)
+        self.props_tab_req = "surface"
+        name = tr("sample." + sample) if sample else m.name
+        self.say(tr("msg.surface_loaded", name=name, tris=m.n_faces, parts=m.parts), "ok")
+        if not m.watertight:
+            self.say(tr("msg.surface_open"), "warn")
+        if m.decimated:
+            self.say(tr("msg.surface_decimated"), "warn")
+        self.dirty = True
+        return True
+
+    def load_sample(self, name, commit=True):
+        path = sample_path(name)
+        if not os.path.isfile(path):
+            self.say(tr("msg.surface_error", err=name), "error")
+            return False
+        return self.import_surface(path, commit=commit, sample=name)
+
+    def remove_surface(self):
+        """Back to the normal plate / coin: only the 3D model goes away, every other setting is kept (undoable)."""
+        if self.surface is None:
+            return False
+        self.commit_now()
+        self.surface = None
+        self.surface_result = None
+        self.say(tr("msg.surface_removed"), "ok")
+        self.dirty = True
+        return True
+
+    def update_surface(self, interacting=False):
+        if self.surface is None or self.result is None:
+            self.surface_result = None
+            return None
+        from nimcale.core.surface import SurfaceBuilder
+        if self.surface_builder is None:
+            self.surface_builder = SurfaceBuilder()
+        self.surface_result = self.surface_builder.build(self.surface, self.params, self.result)
+        return self.surface_result
+
     def check_aspect(self):
         if self.tex is None or self.hm is None:
             return
@@ -214,6 +292,13 @@ class NimcaleApp:
             self.say(tr("msg.aspect_differs", a=ta, b=pa), "warn")
 
     def handle_drops(self, files):
+        from nimcale.core.surface import is_mesh_file
+        meshes = [f for f in files if os.path.isfile(f) and is_mesh_file(f)]
+        if meshes:
+            self.import_surface(meshes[0])
+            files = [f for f in files if f not in meshes]
+            if not files:
+                return
         imgs = [f for f in files if os.path.isfile(f) and images.is_image_file(f)]
         projs = [f for f in files if f.lower().endswith(".nimcale")]
         if projs:
@@ -244,7 +329,7 @@ class NimcaleApp:
 
     # ======================================================================== undo / redo
     def snapshot(self, label=""):
-        return Snapshot(self.params, self.sculptor.layer, self.tex, self.hm, label)
+        return Snapshot(self.params, self.sculptor.layer, self.tex, self.hm, label, self.surface)
 
     def restore(self, s):
         self.params = s.params.copy()
@@ -252,6 +337,9 @@ class NimcaleApp:
         self.sculptor.rev += 1
         self.tex = s.tex
         self.hm = s.hm
+        if s.surface is not self.surface:
+            self.surface = s.surface
+            self.surface_builder = None
         self._committed = s
         self._seen_key = self.params.key()
         self.dirty = True
@@ -316,6 +404,7 @@ class NimcaleApp:
             return
         res = self.pipeline.compute(self.hm, self.params, self.sculptor.layer, self.sculptor.rev, tex=self.tex)
         self.result = res
+        sr = self.update_surface(interacting)
         if self.renderer is None:
             return
         rev = self.pipeline.revision
@@ -347,6 +436,10 @@ class NimcaleApp:
             self.ao = cavity_ao(res.hf, res.size, p.depth) if self.view.ao > 0.001 else np.ones_like(res.hf)
             self.ao_rev = rev
             self.renderer.set_field(res.hf, self.ao)
+        if sr is not self._surface_uploaded:
+            self.renderer.set_surface(sr)
+            self._surface_uploaded = sr
+            self.update_stats()
 
     def upload_texture(self):
         if self.renderer is None or self.tex is None:
@@ -361,6 +454,16 @@ class NimcaleApp:
 
     def update_stats(self):
         res, p = self.result, self.params
+        if self.surface_result is not None:
+            sr = self.surface_result
+            lo, hi = sr.bounds()
+            ext = hi - lo
+            vol = abs(meshmod.volume(sr.P, sr.F))
+            hmax = float(sr.h_v.max()) if len(sr.h_v) else 0.0
+            self.stats = dict(w=float(ext[0]), h=float(ext[1]), depth_mm=float(ext[2]), relief=hmax * p.depth * p.size_mm,
+                              base=0.0, total=float(ext[2]), volume=vol, tris=sr.n_tris, cells=(0, 0),
+                              surface=True, bbox=None)
+            return
         if res is None or self.topo is None:
             return
         sw, sh = res.size
@@ -392,6 +495,7 @@ class NimcaleApp:
         if self.tool == "sculpt" and self.brush_uv is not None:
             brush = (self.brush_uv[0], self.brush_uv[1], self.sculptor.radius, 1.0)
         return dict(params=self.params, view=self.view, size=res.size, orient=res.orient, time=t,
+                    surface=self.surface_result is not None,
                     anim_bg=anim, brush=brush, bbox=self.stats.get("bbox"),
                     grid_step=10.0 / max(1.0, self.params.size_mm))
 
@@ -443,6 +547,14 @@ class NimcaleApp:
                     b = io.BytesIO()
                     np.save(b, self.hm.alpha_full.astype(np.float32))
                     z.writestr("heightmap_alpha.npy", b.getvalue())
+                if self.surface is not None:
+                    b = io.BytesIO()
+                    sm = self.surface
+                    extra = dict(corner_uv=sm.corner_uv) if sm.corner_uv is not None else {}
+                    np.savez_compressed(b, V=sm.V, F=sm.F, unit=np.array([sm.unit]), **extra)
+                    z.writestr("surface.npz", b.getvalue())
+                    z.writestr("surface.json", json.dumps(dict(name=sm.name, up=sm.up, parts=sm.parts,
+                                                               sample=getattr(sm, "sample", None))))
                 if self.sculptor.has_edits():
                     b = io.BytesIO()
                     np.save(b, self.sculptor.layer.astype(np.float32))
@@ -467,6 +579,15 @@ class NimcaleApp:
                 sculpt = np.load(io.BytesIO(z.read("sculpt.npy"))) if "sculpt.npy" in z.namelist() else None
                 hm_alpha = np.load(io.BytesIO(z.read("heightmap_alpha.npy"))) \
                     if "heightmap_alpha.npy" in z.namelist() else None
+                surf = None
+                if "surface.npz" in z.namelist():
+                    from nimcale.core.surface import SurfaceModel
+                    npz = np.load(io.BytesIO(z.read("surface.npz")))
+                    sj = json.loads(z.read("surface.json").decode("utf-8")) if "surface.json" in z.namelist() else {}
+                    surf = SurfaceModel(npz["V"], npz["F"], npz["corner_uv"] if "corner_uv" in npz.files else None,
+                                        sj.get("name", "surface"), parts=sj.get("parts", 1), unit=float(npz["unit"][0]))
+                    surf.up = sj.get("up", "z")
+                    surf.sample = sj.get("sample")
             self.commit_now()
             self.tex = images.TextureImage(tex_img.convert("RGB"), tuple(meta.get("tex_orig", tex_img.size)),
                                            meta.get("texture_name", ""))
@@ -477,6 +598,8 @@ class NimcaleApp:
             self.view.update(meta.get("view", {}))
             self.sculptor.layer = sculpt.astype(np.float32) if sculpt is not None else None
             self.sculptor.rev += 1
+            self.surface = surf
+            self.surface_builder = None
             self.project_path = path
             self.dirty = False
             self.cfg.add_recent(path)
@@ -508,6 +631,7 @@ class NimcaleApp:
 
     def reset_all(self):
         self.commit_now()
+        self.surface = None
         self.params = coin_defaults(ModelParams())
         self.shape_user_set = False
         self.refit_shape(quiet=True)
@@ -518,4 +642,5 @@ class NimcaleApp:
     def export_data(self):
         return dict(hm=self.hm, tex=self.tex, params=self.params.copy(),
                     sculpt=self.sculptor.layer.copy() if self.sculptor.layer is not None else None,
-                    preview_result=self.result, outcol=border_color(self.tex.img), mix=self.view.mix)
+                    preview_result=self.result, outcol=border_color(self.tex.img), mix=self.view.mix,
+                    surface=self.surface, surface_result=self.surface_result)

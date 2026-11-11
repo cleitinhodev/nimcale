@@ -17,6 +17,7 @@ def parse_args(argv=None):
     ap.add_argument("texture", nargs="?", help="texture image (or a .nimcale project)")
     ap.add_argument("heightmap", nargs="?", help="height map image")
     ap.add_argument("--project", help="open a .nimcale project")
+    ap.add_argument("--surface", help="3D model file (or sample name: cup, mug, bottle...) for the surface layer")
     ap.add_argument("--software", action="store_true", help="force the Mesa software OpenGL renderer")
     ap.add_argument("--gpu", action="store_true", help="force the GPU (system) OpenGL driver")
     ap.add_argument("--probe-gl", action="store_true", help=argparse.SUPPRESS)
