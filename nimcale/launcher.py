@@ -31,6 +31,7 @@ def parse_args(argv=None):
     ap.add_argument("--tab", type=int, default=None, help="about window tab (1..4) or properties tab")
     ap.add_argument("--props-tab", default=None, help="properties tab to select (model, shape, texture, sculpt, scene)")
     ap.add_argument("--do", default="", help=argparse.SUPPRESS)   # comma separated actions (tests)
+    ap.add_argument("--set", default="", help=argparse.SUPPRESS)  # k=v,... model parameters (tests / screenshots)
     ap.add_argument("--do-at", type=int, default=3, help=argparse.SUPPRESS)
     ap.add_argument("--quit-after", type=int, default=0, help="quit after N frames (smoke test)")
     ap.add_argument("--demo-sculpt", action="store_true", help=argparse.SUPPRESS)

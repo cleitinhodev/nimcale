@@ -173,11 +173,15 @@ class Renderer:
         self.surf_count = n
         lo, hi = sr.bounds()
         c = (lo + hi) * 0.5
-        k = 1.0 / max(1e-6, float(np.max(hi - lo)))
+        k = 0.85 / max(1e-6, float(np.max(hi - lo)))
+        # the model is Z up; the camera shows the plate face-on, so the model is turned to stand upright
+        # in front of it (model -Y = front faces the camera)
+        Rz = np.array([[1, 0, 0], [0, 0, 1], [0, -1, 0]], float)
         M = np.eye(4)
-        M[:3, :3] *= k
-        M[:3, 3] = -c * k
+        M[:3, :3] = Rz * k
+        M[:3, 3] = -(Rz @ c) * k
         self.surf_xform = M
+        self.surf_nrot = Rz
         self.surf_tile = 1 if sr.tile else 0
         self.surf_box = ((lo - c) * k, (hi - c) * k)
         self.n_tris_surface = len(F)
@@ -306,6 +310,7 @@ class Renderer:
         pr = self.sprog
         _u(pr, "u_mvp", gl_bytes(cam.mvp))
         _u(pr, "u_model", gl_bytes(self.surf_xform))
+        _u(pr, "u_nrot", np.ascontiguousarray(self.surf_nrot.T, np.float32).tobytes())
         orient = s["orient"]
         M = orient.matrix_plate_to_src()
         _u(pr, "u_plate2src", np.ascontiguousarray(M.T, np.float32).tobytes())
@@ -347,12 +352,7 @@ class Renderer:
             _u(pr, "u_wire", 1)
             self.surf_vao.render(moderngl.TRIANGLES)
             ctx.wireframe = False
-        lo, hi = self.surf_box
-        s2 = dict(s)
-        s2["z0"] = float(lo[2])
-        s2["size"] = (float(hi[0] - lo[0]), float(hi[1] - lo[1]))
-        s2["bbox"] = (tuple(lo), tuple(hi))
-        self._overlays(s2, cam)
+
 
     def _overlays(self, s, cam):
         v, p = s["view"], s["params"]

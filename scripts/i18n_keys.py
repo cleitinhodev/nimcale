@@ -14,7 +14,7 @@ sys.path.insert(0, ROOT)
 
 PREFIXES = ("about", "act", "bg", "brush", "dlg", "drop", "err", "exp", "file", "fit", "fmt", "guide", "hd",
             "interp", "m", "mat", "menu", "mode", "msg", "p", "preset", "sc", "sculpt", "sec", "set", "shape",
-            "stage", "status", "tab", "tip", "vp", "win", "srf", "beta", "proj", "axis", "sample", "cut")
+            "stage", "status", "tab", "tip", "vp", "win", "srf", "beta", "proj", "axis", "sample", "cut", "fit")
 
 
 def used_keys():
@@ -43,6 +43,7 @@ def used_keys():
     keys.update("sample." + x for x in SAMPLES)
     keys.update("srf.up_" + x for x in ("auto", "z", "y", "x"))
     keys.update("srf.rot_" + x for x in ("x", "y", "z"))
+    keys.update("fit." + x for x in ("stretch", "width", "height"))
     keys.update("guide.%d" % i for i in range(1, 10))
     keys.update("mat." + m for m in MATERIALS)
     for b in BRUSHES:

@@ -332,7 +332,7 @@ class Panels:
         from nimcale.core.surface import SAMPLES
         app = self.app
         avail = imgui.get_content_region_avail().x
-        cols = 3 if avail > 200 else 2
+        cols = 3 if avail > 330 else 2
         bw = (avail - 4 * (cols - 1)) / cols
         for i, s in enumerate(SAMPLES):
             if i % cols:
@@ -417,6 +417,19 @@ class Panels:
                     p.srf_axis = AXES[na]
             if p.srf_proj == "uv" and not m.has_uv:
                 imgui.text_colored(theme.v4(theme.WARN), tr("srf.no_uv"))
+            eff = sr.mode if sr is not None else p.srf_proj
+            if eff in ("cylinder", "planar", "decal"):
+                W.label(tr("srf.fit"))
+                imgui.set_next_item_width(-1)
+                fits = ("stretch", "width", "height")
+                fi = fits.index(p.srf_fit) if p.srf_fit in fits else 0
+                ch, nf = imgui.combo("##srf_fit", fi, [tr("fit." + x) for x in fits])
+                W.tooltip(tr("tip.srf_fit"))
+                if ch:
+                    p.srf_fit = fits[nf]
+            if eff == "cylinder":
+                p.srf_outer = W.checkbox("srf_outer", tr("srf.outer"), p.srf_outer, tip=tr("tip.srf_outer"))
+                p.srf_caps = W.checkbox("srf_caps", tr("srf.caps"), p.srf_caps)
             p.srf_tile = W.checkbox("srf_tile", tr("srf.tile"), p.srf_tile, tip=tr("tip.srf_tile"))
             p.srf_mirror = W.checkbox("srf_mirror", tr("srf.mirror"), p.srf_mirror)
             p.srf_use_cut = W.checkbox("srf_cut", tr("srf.use_cut"), p.srf_use_cut, tip=tr("tip.srf_use_cut"))
@@ -437,7 +450,7 @@ class Panels:
             if W.wide_button("%s  %s" % (fa.ICON_FA_ARROWS_ROTATE, tr("srf.reset_place")), "srf_reset_place"):
                 d = ModelParams()
                 for k in ("srf_ou", "srf_ov", "srf_scale", "srf_sx", "srf_sy", "srf_lock", "srf_rot", "srf_seam",
-                          "srf_mirror"):
+                          "srf_mirror", "srf_fit"):
                     setattr(p, k, getattr(d, k))
         # ---- relief on the surface
         if header(tr("srf.sec_relief"), fa.ICON_FA_MOUNTAIN):

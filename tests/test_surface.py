@@ -98,6 +98,45 @@ def _hm():
     return images.load_heightmap(DEFAULT_HM)
 
 
+def cup_r(m):
+    return float(np.hypot(m.V[:, 0], m.V[:, 1]).max())
+
+
+def test_outer_only_and_caps(cup, plate):
+    """Cylinder mode: by default only the outer wall gets relief (inside of the cup and top/bottom stay smooth)."""
+    p, res = plate
+    p = p.copy()
+    p.srf_tile = True
+    sr = S.SurfaceBuilder().build(cup, p, res, max_faces=120_000)
+    V, N = sr.geo.V, sr.geo.VN
+    r = np.hypot(V[:, 0], V[:, 1])
+    radial = (N[:, 0] * V[:, 0] + N[:, 1] * V[:, 1]) / np.maximum(r, 1e-9)
+    inner = radial < -0.5
+    caps = np.abs(N[:, 2]) > 0.9
+    assert inner.any() and caps.any()
+    assert sr.w_v[inner].max() == 0.0 and sr.w_v[caps].max() == 0.0
+    assert np.allclose(sr.P[inner], V[inner])
+    p.srf_outer, p.srf_caps = False, True
+    sr2 = S.SurfaceBuilder().build(cup, p, res, max_faces=120_000)
+    assert sr2.w_v[inner].min() == 1.0 and sr2.w_v[caps].min() == 1.0
+
+
+def test_fit_modes(cup, plate):
+    p, res = plate
+    p = p.copy()
+    p.srf_tile = False
+    spans = {}
+    for fit in ("stretch", "width", "height"):
+        p.srf_fit = fit
+        sr = S.SurfaceBuilder().build(cup, p, res, max_faces=120_000)
+        side = (sr.w_v > 0) | (np.abs(sr.geo.VN[:, 2]) < 0.5)
+        spans[fit] = (np.ptp(sr.uv_v[side, 0]), np.ptp(sr.uv_v[side, 1]), sr.w_v.mean())
+    # stretch covers the whole wall in both directions; width keeps the proportion so the height is cropped
+    assert spans["stretch"][1] <= 1.05 and spans["width"][1] < spans["stretch"][1]
+    # height keeps the proportion so the image does not go all the way around
+    assert spans["height"][0] > 1.5 and spans["height"][2] < spans["stretch"][2]
+
+
 def test_placement_single_tile_mirror_decal(cup, plate):
     p, res = plate
     p = p.copy()
@@ -110,7 +149,13 @@ def test_placement_single_tile_mirror_decal(cup, plate):
     assert not np.allclose(moved.w_v, single.w_v)
     p.srf_tile = True
     tiled = S.SurfaceBuilder().build(cup, p, res)
+    V, N = tiled.geo.V, tiled.geo.VN
+    side = (np.abs(N[:, 2]) < 0.5) & ((N[:, 0] * V[:, 0] + N[:, 1] * V[:, 1]) > 0)
+    assert tiled.w_v[side].min() == 1.0                 # the whole outer wall
+    p.srf_outer, p.srf_caps = False, True
+    tiled = S.SurfaceBuilder().build(cup, p, res)
     assert tiled.w_v.min() == 1.0 and tiled.uv_v.min() >= 0 and tiled.uv_v.max() <= 1
+    p.srf_outer, p.srf_caps = True, False
     p.srf_tile, p.srf_ou, p.srf_mirror = False, 0.0, True
     mir = S.SurfaceBuilder().build(cup, p, res)
     ins = single.w_v > 0.5

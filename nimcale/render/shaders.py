@@ -209,7 +209,8 @@ void main() { f_color = v_col; }
 SURF_VERT = """
 #version 330
 uniform mat4  u_mvp;
-uniform mat4  u_model;      // mm -> view units (scale + centring)
+uniform mat4  u_model;      // mm -> view units (scale + centring + upright)
+uniform mat3  u_nrot;
 in vec3  in_pos;
 in vec3  in_nrm;
 in vec2  in_uv;
@@ -223,7 +224,7 @@ out float v_h;
 void main() {
     vec4 p = u_model * vec4(in_pos, 1.0);
     v_pos = p.xyz;
-    v_nrm = in_nrm;
+    v_nrm = u_nrot * in_nrm;
     v_uv = in_uv;
     v_w = in_w;
     v_h = in_h;

@@ -145,6 +145,11 @@ class NimcaleApp:
                 self.import_surface(surf, commit=False)
             else:
                 self.load_sample(surf, commit=False)
+        for kv in filter(None, (getattr(a, "set", "") or "").split(",")):   # --set k=v,... (tests / screenshots)
+            k, _, v = kv.partition("=")
+            cur = getattr(self.params, k, None)
+            if cur is not None:
+                setattr(self.params, k, (v.lower() in ("1", "true", "yes")) if isinstance(cur, bool) else type(cur)(v))
         self._committed = self.snapshot()
         from nimcale import IS_TEST_BUILD
         if IS_TEST_BUILD:
@@ -239,7 +244,7 @@ class NimcaleApp:
         p = self.params
         d = ModelParams()
         for k in ("srf_proj", "srf_axis", "srf_ou", "srf_ov", "srf_scale", "srf_sx", "srf_sy", "srf_lock", "srf_rot",
-                  "srf_seam", "srf_tile", "srf_mirror", "srf_use_cut", "srf_up", "srf_rx", "srf_ry", "srf_rz"):
+                  "srf_seam", "srf_tile", "srf_mirror", "srf_use_cut", "srf_fit", "srf_outer", "srf_caps", "srf_up", "srf_rx", "srf_ry", "srf_rz"):
             setattr(p, k, getattr(d, k))
         p.srf_size = round(m.default_size(), 1)
         m.sample = sample
@@ -248,6 +253,9 @@ class NimcaleApp:
         if self.tool == "sculpt":
             self.toggle_sculpt(False)
         self.props_tab_req = "surface"
+        # a 3D object reads best seen slightly from above and to the side
+        self.view.yaw, self.view.pitch, self.view.pan = math.radians(-25.0), math.radians(22.0), [0.0, 0.0]
+        self.view.dist = 2.25
         name = tr("sample." + sample) if sample else m.name
         self.say(tr("msg.surface_loaded", name=name, tris=m.n_faces, parts=m.parts), "ok")
         if not m.watertight:
@@ -271,6 +279,7 @@ class NimcaleApp:
         self.commit_now()
         self.surface = None
         self.surface_result = None
+        self.view.reset_camera()
         self.say(tr("msg.surface_removed"), "ok")
         self.dirty = True
         return True

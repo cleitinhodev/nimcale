@@ -98,6 +98,9 @@ class ModelParams:
     srf_tile: bool = False        # repeat the image instead of a single copy
     srf_mirror: bool = False
     srf_use_cut: bool = False     # use the plate outline (cutout) as the decal mask
+    srf_fit: str = "stretch"      # stretch (cover the whole side) | width (around, keep proportion) | height
+    srf_outer: bool = True        # cylinder: only the outer wall (not the inside of cups)
+    srf_caps: bool = False        # cylinder: also the top / bottom faces
     srf_detail: int = 320         # preview relief samples across the image (subdivision density)
     srf_up: str = "auto"          # auto | z | y | x  (up axis of the file)
     srf_rx: float = 0.0           # model rotation (degrees)
@@ -151,6 +154,8 @@ class ModelParams:
             self.srf_proj = "auto"
         if self.srf_axis not in AXES:
             self.srf_axis = "top"
+        if self.srf_fit not in ("stretch", "width", "height"):
+            self.srf_fit = "stretch"
         if self.srf_up not in ("auto", "z", "y", "x"):
             self.srf_up = "auto"
 

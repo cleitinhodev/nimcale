@@ -422,7 +422,22 @@ class Placement:
         return np.stack([u, v], -1)
 
 
-def raw_coords(mode, axis, V, F, VN, corner_uv, asp, seam_deg, center=None):
+def side_band(V, VN, axis, center):
+    """(z0, z1, R): axial range and radius of the outer side wall of a cylinder-like model."""
+    e1, e2, a = cyl_frame(axis)
+    c = center if center is not None else np.zeros(2)
+    q = np.stack([V @ e1 - c[0], V @ e2 - c[1]], 1)
+    r = np.linalg.norm(q, axis=1)
+    Z = V @ a
+    nq = np.stack([VN @ e1, VN @ e2], 1)
+    radial = np.einsum("ij,ij->i", nq, q) / np.maximum(r, 1e-9)
+    side = (np.abs(VN @ a) < 0.5) & (radial > 0.2)
+    if side.sum() < 3:
+        side = np.ones(len(V), bool)
+    return float(Z[side].min()), float(Z[side].max()), float(np.percentile(r[side], 90))
+
+
+def raw_coords(mode, axis, V, F, VN, corner_uv, asp, seam_deg, center=None, fit="stretch"):
     """Raw projection coordinates (before placement): per vertex (n, 2) and per corner (F, 3, 2)."""
     if mode == "uv":
         cu = corner_uv.astype(np.float64)
@@ -438,31 +453,47 @@ def raw_coords(mode, axis, V, F, VN, corner_uv, asp, seam_deg, center=None):
             X, Y = X - center[0], Y - center[1]
         th0 = math.radians(-90.0 + seam_deg)
         th = np.arctan2(Y, X)
-        u = np.mod((th - th0) / (2 * math.pi) + 0.5, 1.0)
+        t = np.mod((th - th0) / (2 * math.pi) + 0.5, 1.0)
+        ku = 1.0
         if mode == "cylinder":
-            r = np.hypot(X, Y)
-            R = float(np.percentile(r, 90)) if len(r) else 1.0
+            z0, z1, R = side_band(V, VN, axis, center)
+            Hs = max(z1 - z0, 1e-6)
+            zc = 0.5 * (z0 + z1)
             circ = 2 * math.pi * max(R, 1e-6)
-            v = Z / (circ * asp) + 0.5
+            if fit == "width":
+                v = (Z - zc) / (circ * asp) + 0.5
+            elif fit == "height":
+                v = (Z - zc) / Hs + 0.5
+                ku = circ / (Hs / asp)
+            else:
+                v = (Z - zc) / Hs + 0.5
         else:
             v = np.arctan2(Z, np.hypot(X, Y)) / math.pi + 0.5
-        vu = np.stack([u, v], 1)
-        cu = vu[F].copy()
+        vt = np.stack([t, v], 1)
+        ct = vt[F].copy()
         # faces crossing the seam: unwrap their u so the texture is not squeezed backwards
-        span = cu[:, :, 0].max(1) - cu[:, :, 0].min(1)
+        span = ct[:, :, 0].max(1) - ct[:, :, 0].min(1)
         wrap = span > 0.5
-        cw = cu[wrap]
+        cw = ct[wrap]
         cw[:, :, 0] = np.where(cw[:, :, 0] < 0.5, cw[:, :, 0] + 1.0, cw[:, :, 0])
-        cu[wrap] = cw
-        return vu, cu
+        ct[wrap] = cw
+        vt[:, 0] = (vt[:, 0] - 0.5) * ku + 0.5
+        ct[:, :, 0] = (ct[:, :, 0] - 0.5) * ku + 0.5
+        return vt, ct
     if mode in ("planar", "decal"):
         e1, e2, d = frame_for(axis)
         X, Y = V @ e1, V @ e2
+        X = X - 0.5 * (X.max() + X.min())
+        Y = Y - 0.5 * (Y.max() + Y.min())
         W = float(X.max() - X.min()) or 1.0
         Hh = float(Y.max() - Y.min()) or 1.0
-        # fit the whole texture on the visible side (keeping its proportion)
-        Wr = max(W, Hh / asp)
-        vu = np.stack([X / Wr + 0.5, Y / (Wr * asp) + 0.5], 1)
+        if fit == "width":
+            Wu, Hv = W, W * asp
+        elif fit == "height":
+            Wu, Hv = Hh / asp, Hh
+        else:
+            Wu, Hv = W, Hh
+        vu = np.stack([X / Wu + 0.5, Y / Hv + 0.5], 1)
         return vu, vu[F]
     # box / triplanar: dominant axis of the (face / vertex) normal
     ext = V.max(0) - V.min(0)
@@ -559,7 +590,7 @@ class SurfaceResult:
 def displace(geo, p, hf, sdf, relief_mm):
     """Decal coordinates + relief displacement on a SurfaceGeometry."""
     V, F, VN = geo.V, geo.F, geo.VN
-    vu, cu = raw_coords(geo.mode, geo.axis, V, F, VN, geo.corner_uv, geo.asp, p.srf_seam, geo.center)
+    vu, cu = raw_coords(geo.mode, geo.axis, V, F, VN, geo.corner_uv, geo.asp, p.srf_seam, geo.center, p.srf_fit)
     pl = Placement(p)
     uv_v = pl.apply(vu)
     uv_c = pl.apply(cu)
@@ -581,6 +612,25 @@ def displace(geo, p, hf, sdf, relief_mm):
             w_v *= front_v
             FN = face_normals(V, F)
             w_c *= ((FN @ d) < -0.05)[:, None]
+    if geo.mode == "cylinder" and (p.srf_outer or not p.srf_caps):
+        e1, e2, a = cyl_frame(geo.axis)
+        c = geo.center if geo.center is not None else np.zeros(2)
+        FN = face_normals(V, F)
+        R_body = side_band(V, VN, geo.axis, geo.center)[2]
+
+        def keep(P, N):
+            q = np.stack([P @ e1 - c[0], P @ e2 - c[1]], 1)
+            r = np.linalg.norm(q, axis=1)
+            radial = np.einsum("ij,ij->i", np.stack([N @ e1, N @ e2], 1), q) / np.maximum(r, 1e-9)
+            ok = np.ones(len(P), bool)
+            if p.srf_outer:
+                ok &= radial > -0.2           # not the inner wall of cups / vases
+                ok &= r < 1.12 * R_body       # nor handles / parts sticking out of the body
+            if not p.srf_caps:
+                ok &= np.abs(N @ a) < 0.75    # not the top / bottom faces
+            return ok
+        w_v = w_v * keep(V, VN)
+        w_c = w_c * keep(V[F].mean(1), FN)[:, None]
     if p.srf_use_cut and sdf is not None:
         w_v = w_v * (sample_field(sdf, np.mod(uv_v, 1.0) if tile else uv_v) > 0)
         w_c = w_c * (sample_field(sdf, np.mod(uv_c, 1.0) if tile else uv_c) > 0)
@@ -620,7 +670,7 @@ class SurfaceBuilder:
 
 
 PLACE_KEYS = ("srf_ou", "srf_ov", "srf_scale", "srf_sx", "srf_sy", "srf_lock", "srf_rot", "srf_seam", "srf_tile",
-              "srf_mirror", "srf_use_cut")
+              "srf_mirror", "srf_use_cut", "srf_fit", "srf_outer", "srf_caps")
 
 
 def build_hd(model, p, res_hd, nodes, max_faces=4_000_000):
