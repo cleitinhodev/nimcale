@@ -332,7 +332,7 @@ class Panels:
         from nimcale.core.surface import SAMPLES
         app = self.app
         avail = imgui.get_content_region_avail().x
-        cols = 3 if avail > 330 else 2
+        cols = 3 if avail > 420 else 2
         bw = (avail - 4 * (cols - 1)) / cols
         for i, s in enumerate(SAMPLES):
             if i % cols:
