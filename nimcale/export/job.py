@@ -81,6 +81,8 @@ class ExportJob:
         hm = d["hm"]
         if o.fmt in ("height_png", "normal_png", "texture_png"):
             return self._run_image()
+        if d.get("surface") is not None:
+            return self._run_surface()
         self._set(0.01, "heightmap")
         if o.hd:
             res = Pipeline().compute_hd(hm, p, o.hd_nodes, d.get("sculpt"), o.interp, tex=d.get("tex"))
@@ -116,6 +118,57 @@ class ExportJob:
                            size=os.path.getsize(o.path) if os.path.exists(o.path) else 0,
                            seconds=time.time() - self.t0, dims=[float(x) / unit for x in ext_],
                            volume_mm3=abs(meshmod.volume(m.P, m.F)) / (unit ** 3) if o.fmt != "x" else 0.0))
+        self._set(1.0, "done")
+        return report
+
+    def _run_surface(self):
+        """Texture + relief merged onto the imported model: one displaced solid with baked texture / UVs."""
+        from nimcale.core import surface as srf
+        d, o = self.data, self.opts
+        p = d["params"]
+        self._set(0.01, "heightmap")
+        if o.hd:
+            res = Pipeline().compute_hd(d["hm"], p, o.hd_nodes, d.get("sculpt"), o.interp, tex=d.get("tex"))
+            self._set(0.12, "mesh")
+            sr = srf.build_hd(d["surface"], p, res, o.hd_nodes)
+        else:
+            res = d["preview_result"]
+            sr = d.get("surface_result")
+            if sr is None:
+                sr = srf.SurfaceBuilder().build(d["surface"], p, res)
+        fid, ext, needs_tex, unit = formats.format_info(o.fmt)
+        self._set(0.45, "texture")
+        plate_img = None
+        if d.get("tex") is not None and fid in ("obj", "glb", "gltf", "ply"):
+            plate_img = bake_texture(d["tex"], p, res.orient, o.tex_res, d.get("outcol", (1, 1, 1)),
+                                     hf=res.hf if o.tex_mix else None, mix=d.get("mix", 0.5) if o.tex_mix else 0.0)
+        else:
+            from PIL import Image
+            plate_img = Image.new("RGB", (8, 8), (255, 255, 255))
+        welded, split, atlas = srf.export_meshes(sr, plate_img, (p.srf_r, p.srf_g, p.srf_b))
+        report = {"triangles_full": welded.n_tris, "surface": True}
+        self._set(0.55, "check")
+        if o.check:
+            report.update(meshmod.check_closed(welded.F))
+        m = split if fid in ("obj", "glb", "gltf") else welded
+        tex = atlas if fid in ("obj", "glb", "gltf", "ply") and d.get("tex") is not None else None
+        if o.decimate > 0.01 and tex is None:
+            self._set(0.58, "simplify")
+            m = meshmod.decimate(m, o.decimate)
+            if o.check:
+                report.update(meshmod.check_closed(m.F))
+        m = m.scaled(unit)
+        zmin = float(m.P[:, 2].min())
+        m.P[:, 2] -= zmin
+        self._set(0.66, "write")
+        formats.write_mesh(fid, o.path, m, tex, progress=lambda f, s="": self._set(0.66 + 0.33 * f, "write"),
+                           cancel=self.is_cancelled)
+        ext_ = m.P.max(0) - m.P.min(0)
+        report.update(dict(path=o.path, triangles=m.n_tris, vertices=m.n_verts,
+                           size=os.path.getsize(o.path) if os.path.exists(o.path) else 0,
+                           seconds=time.time() - self.t0, dims=[float(x) / unit for x in ext_],
+                           volume_mm3=abs(meshmod.volume(welded.P, welded.F)),
+                           input_watertight=bool(d["surface"].watertight)))
         self._set(1.0, "done")
         return report
 

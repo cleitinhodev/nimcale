@@ -17,6 +17,7 @@ def parse_args(argv=None):
     ap.add_argument("texture", nargs="?", help="texture image (or a .nimcale project)")
     ap.add_argument("heightmap", nargs="?", help="height map image")
     ap.add_argument("--project", help="open a .nimcale project")
+    ap.add_argument("--surface", help="3D model file (or sample name: cup, mug, bottle...) for the surface layer")
     ap.add_argument("--software", action="store_true", help="force the Mesa software OpenGL renderer")
     ap.add_argument("--gpu", action="store_true", help="force the GPU (system) OpenGL driver")
     ap.add_argument("--probe-gl", action="store_true", help=argparse.SUPPRESS)
@@ -30,6 +31,7 @@ def parse_args(argv=None):
     ap.add_argument("--tab", type=int, default=None, help="about window tab (1..4) or properties tab")
     ap.add_argument("--props-tab", default=None, help="properties tab to select (model, shape, texture, sculpt, scene)")
     ap.add_argument("--do", default="", help=argparse.SUPPRESS)   # comma separated actions (tests)
+    ap.add_argument("--set", default="", help=argparse.SUPPRESS)  # k=v,... model parameters (tests / screenshots)
     ap.add_argument("--do-at", type=int, default=3, help=argparse.SUPPRESS)
     ap.add_argument("--quit-after", type=int, default=0, help="quit after N frames (smoke test)")
     ap.add_argument("--demo-sculpt", action="store_true", help=argparse.SUPPRESS)
@@ -311,7 +313,41 @@ def selftest():
     path = os.path.join(tempfile.gettempdir(), "nimcale_selftest.stl")
     formats.write_stl(path, m.scaled(p.size_mm))
     print("selftest: %d triangles, watertight=%s, %.1fs -> %s" % (len(m.F), closed, time.time() - t0, path))
-    return 0 if closed["watertight"] else 1
+    ok = closed["watertight"]
+    # surface layer (test build): bundled samples + every import format through the frozen trimesh/collada
+    try:
+        import trimesh
+        from nimcale.app import sample_path
+        from nimcale.core import surface as S
+        t1 = time.time()
+        sm = S.load_surface(sample_path("mug"))
+        tm = trimesh.Trimesh(sm.V, sm.F, process=False)
+        fmts, bad = [], []
+        for ext in (".obj", ".stl", ".ply", ".glb", ".gltf", ".3mf", ".off", ".dae"):
+            fp = os.path.join(tempfile.gettempdir(), "nimcale_selftest_srf" + ext)
+            try:
+                tm.export(fp)
+                fmts.append("%s:%d" % (ext[1:], S.load_surface(fp).n_faces))
+            except Exception as e:  # noqa: BLE001
+                import traceback
+                where = traceback.extract_tb(e.__traceback__)[-3:]
+                bad.append("%s -> %r at %s" % (ext, e, " / ".join("%s:%d" % (os.path.basename(f.filename), f.lineno)
+                                                                  for f in where)))
+        for b in bad:
+            print("selftest surface format FAILED:", b)
+        if bad:
+            ok = False
+        sr = S.SurfaceBuilder().build(sm, p, res, max_faces=60_000)
+        from PIL import Image
+        welded, _split, _atlas = S.export_meshes(sr, Image.new("RGB", (8, 8)), (0.8, 0.8, 0.8))
+        sc = meshmod.check_closed(welded.F)
+        ok = ok and sc["watertight"]
+        print("selftest surface: %s | %d triangles, watertight=%s, %.1fs"
+              % (" ".join(fmts), len(welded.F), sc["watertight"], time.time() - t1))
+    except Exception as e:  # noqa: BLE001
+        print("selftest surface FAILED:", repr(e))
+        ok = False
+    return 0 if ok else 1
 
 
 # ---------------------------------------------------------------------------- main

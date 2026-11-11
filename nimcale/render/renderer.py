@@ -30,6 +30,11 @@ class Renderer:
         self.prog = ctx.program(vertex_shader=shaders.MODEL_VERT, fragment_shader=shaders.MODEL_FRAG)
         self.bgprog = ctx.program(vertex_shader=shaders.BG_VERT, fragment_shader=shaders.BG_FRAG)
         self.lprog = ctx.program(vertex_shader=shaders.LINE_VERT, fragment_shader=shaders.LINE_FRAG)
+        self.sprog = ctx.program(vertex_shader=shaders.SURF_VERT, fragment_shader=shaders.SURF_FRAG)
+        self.surf_vao = None
+        self.surf_bufs = []
+        self.surf_count = 0
+        self.surf_xform = None
         self.bg_vao = ctx.vertex_array(self.bgprog, [])
         self.line_vbo = ctx.buffer(reserve=4096 * 7 * 4, dynamic=True)
         self.line_vao = ctx.vertex_array(self.lprog, [(self.line_vbo, "3f 4f", "in_pos", "in_col")])
@@ -144,6 +149,43 @@ class Renderer:
             add("wire", np.concatenate(lines))
         self.n_tris = (self.counts.get("front", 0) + self.counts.get("bottom", 0) + self.counts.get("walls", 0)) // 3
 
+    def set_surface(self, sr):
+        """Upload a displaced surface (core.surface.SurfaceResult) or remove it (None)."""
+        for b in self.surf_bufs:
+            b.release()
+        self.surf_bufs = []
+        self.surf_vao = None
+        self.surf_count = 0
+        if sr is None:
+            return
+        F = sr.F
+        n = len(F) * 3
+        data = np.empty((n, 10), np.float32)
+        data[:, 0:3] = sr.P[F].reshape(-1, 3)
+        data[:, 3:6] = sr.VN[F].reshape(-1, 3)
+        data[:, 6:8] = sr.uv_c.reshape(-1, 2)
+        data[:, 8] = sr.w_c.reshape(-1)
+        data[:, 9] = sr.h_c.reshape(-1)
+        vbo = self.ctx.buffer(data.tobytes())
+        self.surf_bufs.append(vbo)
+        self.surf_vao = self.ctx.vertex_array(self.sprog, [(vbo, "3f 3f 2f 1f 1f", "in_pos", "in_nrm", "in_uv",
+                                                             "in_w", "in_h")])
+        self.surf_count = n
+        lo, hi = sr.bounds()
+        c = (lo + hi) * 0.5
+        k = 0.85 / max(1e-6, float(np.max(hi - lo)))
+        # the model is Z up; the camera shows the plate face-on, so the model is turned to stand upright
+        # in front of it (model -Y = front faces the camera)
+        Rz = np.array([[1, 0, 0], [0, 0, 1], [0, -1, 0]], float)
+        M = np.eye(4)
+        M[:3, :3] = Rz * k
+        M[:3, 3] = -(Rz @ c) * k
+        self.surf_xform = M
+        self.surf_nrot = Rz
+        self.surf_tile = 1 if sr.tile else 0
+        self.surf_box = ((lo - c) * k, (hi - c) * k)
+        self.n_tris_surface = len(F)
+
     # ------------------------------------------------------------------ framebuffers
     def ensure_fbo(self, w, h):
         w, h = max(8, int(w)), max(8, int(h))
@@ -192,6 +234,11 @@ class Renderer:
             self.bg_vao.render(moderngl.TRIANGLES, vertices=3)
         cam = Camera(v, w, h, extra_yaw)
         s["camera"] = cam
+        if s.get("surface") and self.surf_vao is not None and self.color_tex is not None:
+            self._render_surface(s, cam)
+            if fbo is None and self.fbo_ms is not None:
+                ctx.copy_framebuffer(self.fbo, self.fbo_ms)
+            return cam
         if self.height_tex is None or self.color_tex is None or "front" not in self.vaos:
             return cam
         ctx.enable(moderngl.DEPTH_TEST)
@@ -254,6 +301,59 @@ class Renderer:
             ctx.copy_framebuffer(self.fbo, self.fbo_ms)
         return cam
 
+    def _render_surface(self, s, cam):
+        ctx = self.ctx
+        v, p = s["view"], s["params"]
+        ctx.enable(moderngl.DEPTH_TEST)
+        ctx.disable(moderngl.CULL_FACE)
+        ctx.disable(moderngl.BLEND)
+        pr = self.sprog
+        _u(pr, "u_mvp", gl_bytes(cam.mvp))
+        _u(pr, "u_model", gl_bytes(self.surf_xform))
+        _u(pr, "u_nrot", np.ascontiguousarray(self.surf_nrot.T, np.float32).tobytes())
+        orient = s["orient"]
+        M = orient.matrix_plate_to_src()
+        _u(pr, "u_plate2src", np.ascontiguousarray(M.T, np.float32).tobytes())
+        _u(pr, "u_srcsize", src_size(orient.src_w, orient.src_h))
+        tc, ts, rot = align_params(p, self.tex_size[0], self.tex_size[1], orient.src_w, orient.src_h)
+        _u(pr, "u_tc", tc)
+        _u(pr, "u_ts", ts)
+        _u(pr, "u_rot", rot)
+        _u(pr, "u_outcol", tuple(self.outcol))
+        _u(pr, "u_mode", int(v.mode))
+        _u(pr, "u_mix", float(v.mix))
+        _u(pr, "u_unlit", 0 if v.lit else 1)
+        _u(pr, "u_tile", int(self.surf_tile))
+        _u(pr, "u_base", (float(p.srf_r), float(p.srf_g), float(p.srf_b)))
+        phi, th = math.radians(v.light_phi), math.radians(v.light_theta)
+        L = np.array([math.cos(th) * math.cos(phi), math.cos(th) * math.sin(phi), math.sin(th)])
+        _u(pr, "u_light", tuple(float(x) for x in L))
+        _u(pr, "u_cam", tuple(float(x) for x in cam.eye))
+        _u(pr, "u_lint", float(v.light_int))
+        _u(pr, "u_amb", float(v.ambient))
+        _u(pr, "u_specmul", float(v.spec))
+        tint, metal, rough = MATERIAL_DEFS.get(v.material, MATERIAL_DEFS["original"])
+        _u(pr, "u_tint", tuple(tint))
+        _u(pr, "u_metal", float(metal))
+        _u(pr, "u_rough", float(rough))
+        _u(pr, "u_env_top", (0.95, 0.90, 1.0))
+        _u(pr, "u_env_bot", (0.22, 0.10, 0.30))
+        _u(pr, "u_wirecol", (1.0, 0.55, 0.95, 1.0))
+        _u(pr, "u_tex", 1)
+        self.color_tex.use(1)
+        self.color_tex.repeat_x = self.color_tex.repeat_y = False
+        _u(pr, "u_wire", 0)
+        if v.wire:
+            ctx.polygon_offset = (1.0, 1.0)
+        self.surf_vao.render(moderngl.TRIANGLES)
+        ctx.polygon_offset = (0.0, 0.0)
+        if v.wire:
+            ctx.wireframe = True
+            _u(pr, "u_wire", 1)
+            self.surf_vao.render(moderngl.TRIANGLES)
+            ctx.wireframe = False
+
+
     def _overlays(self, s, cam):
         v, p = s["view"], s["params"]
         sw, sh = s["size"]
@@ -262,7 +362,7 @@ class Renderer:
         def seg(a, b, c):
             pts.append((*a, *c))
             pts.append((*b, *c))
-        z0 = -float(p.thickness)
+        z0 = float(s["z0"]) if "z0" in s else -float(p.thickness)
         if v.grid:
             step = s.get("grid_step", 0.1)
             ext = max(sw, sh) * 1.0

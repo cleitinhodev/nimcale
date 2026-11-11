@@ -14,7 +14,7 @@ sys.path.insert(0, ROOT)
 
 PREFIXES = ("about", "act", "bg", "brush", "dlg", "drop", "err", "exp", "file", "fit", "fmt", "guide", "hd",
             "interp", "m", "mat", "menu", "mode", "msg", "p", "preset", "sc", "sculpt", "sec", "set", "shape",
-            "stage", "status", "tab", "tip", "vp", "win")
+            "stage", "status", "tab", "tip", "vp", "win", "srf", "beta", "proj", "axis", "sample", "cut", "fit")
 
 
 def used_keys():
@@ -28,7 +28,7 @@ def used_keys():
             if f.endswith(".py"):
                 src = open(os.path.join(d, f), encoding="utf-8").read()
                 for k in pat.findall(src):
-                    if not re.search(r"\.(png|json|npy|stl|txt|ico)$", k):
+                    if not re.search(r"\.(png|json|npy|stl|txt|ico)$", k) and not k.endswith("_"):
                         keys.add(k)
     for f in EXPORT_FORMATS:
         keys.update({"fmt." + f, "fmt.%s.desc" % f})
@@ -37,6 +37,14 @@ def used_keys():
     keys.update("outline." + s for s in SOURCES)
     keys.update("bg." + b for b in BG_MODES)
     keys.update({"cut.detected", "p.shape"})
+    from nimcale.core.surface import PROJECTIONS, AXES, SAMPLES
+    keys.update("proj." + x for x in PROJECTIONS)
+    keys.update("axis." + x for x in AXES)
+    keys.update("sample." + x for x in SAMPLES)
+    keys.update("srf.up_" + x for x in ("auto", "z", "y", "x"))
+    keys.update("srf.rot_" + x for x in ("x", "y", "z"))
+    keys.update("fit." + x for x in ("stretch", "width", "height"))
+    keys.update("guide.%d" % i for i in range(1, 10))
     keys.update("mat." + m for m in MATERIALS)
     for b in BRUSHES:
         keys.update({"brush." + b, "brush.%s.tip" % b})

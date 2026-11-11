@@ -204,3 +204,115 @@ in vec4 v_col;
 out vec4 f_color;
 void main() { f_color = v_col; }
 """
+
+# ---------------------------------------------------------------------------- surface layer (imported model)
+SURF_VERT = """
+#version 330
+uniform mat4  u_mvp;
+uniform mat4  u_model;      // mm -> view units (scale + centring + upright)
+uniform mat3  u_nrot;
+in vec3  in_pos;
+in vec3  in_nrm;
+in vec2  in_uv;
+in float in_w;
+in float in_h;
+out vec3  v_pos;
+out vec3  v_nrm;
+out vec2  v_uv;
+out float v_w;
+out float v_h;
+void main() {
+    vec4 p = u_model * vec4(in_pos, 1.0);
+    v_pos = p.xyz;
+    v_nrm = u_nrot * in_nrm;
+    v_uv = in_uv;
+    v_w = in_w;
+    v_h = in_h;
+    gl_Position = u_mvp * p;
+}
+"""
+
+SURF_FRAG = """
+#version 330
+uniform sampler2D u_tex;
+uniform mat3  u_plate2src;
+uniform vec2  u_srcsize;
+uniform vec2  u_tc;
+uniform vec2  u_ts;
+uniform float u_rot;
+uniform vec3  u_outcol;
+uniform int   u_mode;
+uniform float u_mix;
+uniform int   u_unlit;
+uniform int   u_tile;
+uniform vec3  u_base;
+uniform vec3  u_light;
+uniform vec3  u_cam;
+uniform float u_lint;
+uniform float u_amb;
+uniform float u_specmul;
+uniform vec3  u_tint;
+uniform float u_metal;
+uniform float u_rough;
+uniform vec3  u_env_top;
+uniform vec3  u_env_bot;
+uniform int   u_wire;
+uniform vec4  u_wirecol;
+in vec3  v_pos;
+in vec3  v_nrm;
+in vec2  v_uv;
+in float v_w;
+in float v_h;
+out vec4 f_color;
+
+vec3 texcolor(vec2 uv) {
+    vec2 src = (u_plate2src * vec3(uv, 1.0)).xy;
+    vec2 p = (src - u_tc) * u_srcsize;
+    float cr = cos(u_rot), sr = sin(u_rot);
+    vec2 q = vec2(cr * p.x + sr * p.y, -sr * p.x + cr * p.y);
+    vec2 tuv = q / (u_srcsize * u_ts) + 0.5;
+    vec3 tc = texture(u_tex, tuv).rgb;
+    vec2 od = max(-tuv, tuv - 1.0);
+    float ow = smoothstep(0.0, 0.03, max(od.x, od.y));
+    return mix(tc, u_outcol, ow);
+}
+
+void main() {
+    if (u_wire == 1) { f_color = u_wirecol; return; }
+    vec3 n = normalize(v_nrm);
+    if (!gl_FrontFacing) n = -n;
+    vec2 uv = (u_tile == 1) ? fract(v_uv) : v_uv;
+    vec3 base = u_base;
+    if (v_w > 0.5) {
+        vec3 tc = texcolor(uv);
+        float g = clamp(v_h, 0.0, 1.0);
+        if (u_mode == 0)      base = tc;
+        else if (u_mode == 1) base = vec3(0.80, 0.78, 0.82);
+        else                  base = mix(tc, vec3(g), u_mix);
+    } else if (u_mode == 1) {
+        base = vec3(0.70, 0.68, 0.72);
+    }
+    vec3 albedo = base * u_tint;
+    vec3 col;
+    if (u_unlit == 1) {
+        col = albedo;
+    } else {
+        vec3 L = normalize(u_light);
+        vec3 V = normalize(u_cam - v_pos);
+        vec3 H = normalize(L + V);
+        float diff = max(dot(n, L), 0.0);
+        float shin = mix(220.0, 10.0, clamp(u_rough, 0.0, 1.0));
+        float spec = (diff > 0.0) ? pow(max(dot(n, H), 0.0), shin) * (shin + 8.0) / 60.0 : 0.0;
+        vec3 F0 = mix(vec3(0.045), albedo, u_metal);
+        float fres = pow(1.0 - max(dot(n, V), 0.0), 5.0);
+        vec3 F = F0 + (1.0 - F0) * fres * (1.0 - u_rough) * 0.6;
+        vec3 R = reflect(-V, n);
+        vec3 env = mix(u_env_bot, u_env_top, clamp(R.z * 0.5 + 0.5 + R.y * 0.25, 0.0, 1.0));
+        vec3 diffuse = albedo * (1.0 - u_metal) * (u_amb + 0.9 * diff * u_lint);
+        vec3 envc = env * F * (0.35 + 0.65 * u_metal) * 1.4;
+        vec3 metalc = albedo * u_metal * (u_amb * 0.9 + 0.75 * diff * u_lint);
+        col = diffuse + metalc + envc + F * spec * u_lint * u_specmul;
+    }
+    f_color = vec4(clamp(col, 0.0, 1.0), 1.0);
+}
+"""

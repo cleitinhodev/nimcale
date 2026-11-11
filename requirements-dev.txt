@@ -1,8 +1,5 @@
 -r requirements.txt
 pytest==9.2.0
-trimesh==5.2.0
-networkx==3.7
-lxml==6.1.3
 pyinstaller==6.22.3
 pyinstaller-hooks-contrib==2026.10
 # only to rebuild the font subsets (scripts/build_fonts.py)
