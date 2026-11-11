@@ -46,6 +46,16 @@ class Shell:
                     app.commit_now()
                     app.import_texture(f1, commit=False)
                     app.import_heightmap(f2, commit=False)
+        elif act == "imp_surface":
+            from nimcale.core.surface import MESH_EXTS
+            filt = [tr("dlg.models3d"), " ".join("*" + e for e in MESH_EXTS), tr("dlg.all_files"), "*"]
+            f = filedialog.open_file(tr("dlg.open_surface"), filt, folder)
+            if f:
+                app.import_surface(f)
+        elif act.startswith("sample:"):
+            app.load_sample(act[7:])
+        elif act == "remove_surface":
+            app.remove_surface()
         elif act == "open_project":
             f = filedialog.open_file(tr("dlg.open_project"), [tr("dlg.project"), "*.nimcale"], folder)
             if f:
@@ -216,6 +226,15 @@ class Shell:
             item("%s  %s" % (fa.ICON_FA_MOUNTAIN, tr("act.imp_hm")), "imp_hm", "Ctrl+M")
             item("%s  %s" % (fa.ICON_FA_FILE_IMPORT, tr("act.import_both")), "imp_both", "Ctrl+O")
             imgui.separator()
+            item("%s  %s" % (fa.ICON_FA_CUBE, tr("act.imp_surface")), "imp_surface", "Ctrl+Shift+U")
+            if imgui.begin_menu("%s  %s" % (fa.ICON_FA_SHAPES, tr("srf.samples"))):
+                from nimcale.core.surface import SAMPLES
+                for s_ in SAMPLES:
+                    item(tr("sample." + s_), "sample:" + s_)
+                imgui.end_menu()
+            item("%s  %s" % (fa.ICON_FA_CIRCLE_XMARK, tr("act.remove_surface")), "remove_surface", "",
+                 enabled=app.surface is not None)
+            imgui.separator()
             item("%s  %s" % (fa.ICON_FA_FOLDER_OPEN, tr("act.open_project")), "open_project", "Ctrl+Shift+O")
             item("%s  %s" % (fa.ICON_FA_FLOPPY_DISK, tr("act.save_project")), "save_project", "Ctrl+S")
             item("%s  %s" % (fa.ICON_FA_FLOPPY_DISK, tr("act.save_project_as")), "save_project_as", "")
@@ -323,6 +342,9 @@ class Shell:
             imgui.same_line()
         if b("tb_hm", fa.ICON_FA_MOUNTAIN, tr("act.imp_hm") + " (Ctrl+M)", "imp_hm"):
             imgui.same_line()
+        if b("tb_srf", fa.ICON_FA_CUBE, tr("act.imp_surface") + " (Ctrl+Shift+U)", "imp_surface",
+             active=app.surface is not None):
+            imgui.same_line()
         if b("tb_open", fa.ICON_FA_FOLDER_OPEN, tr("act.open_project"), "open_project"):
             imgui.same_line()
         if b("tb_save", fa.ICON_FA_FLOPPY_DISK, tr("act.save_project") + " (Ctrl+S)", "save_project"):
@@ -394,6 +416,9 @@ class Shell:
         else:
             W.label(tr("status.ready"))
         right = []
+        from nimcale import IS_TEST_BUILD
+        if IS_TEST_BUILD:
+            right.append("%s %s" % (fa.ICON_FA_FLASK, tr("beta.badge")))
         if app.export_job is not None and not app.export_job.done:
             right.append("%s %d %%" % (fa.ICON_FA_GEARS, app.export_job.progress * 100))
         st = app.stats
@@ -432,6 +457,8 @@ class Shell:
                 app.pending.append("save_project_as" if shift else "save_project")
             if pressed(K.e):
                 app.pending.append("quick_stl" if shift else "export_dialog")
+            if shift and pressed(K.u):
+                app.pending.append("imp_surface")
             if pressed(K.z, True):
                 app.pending.append("redo" if shift else "undo")
             if pressed(K.y, True):

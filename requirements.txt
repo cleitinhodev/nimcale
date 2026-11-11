@@ -8,3 +8,10 @@ Pillow==13.0.0
 scipy==1.18.1
 fast-simplification==0.2.0
 glfw==2.11.0
+# surface layer (import of 3D models: OBJ, STL, PLY, glTF/GLB, 3MF, OFF, DAE)
+trimesh==5.2.0
+networkx==3.7
+lxml==6.1.3
+pycollada==0.9.3
+python-dateutil==4.0.0
+tzdata==2026.6

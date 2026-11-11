@@ -36,6 +36,11 @@ if os.path.isdir(mesa):
 
 hiddenimports = ["glcontext", "moderngl", "fast_simplification", "scipy.ndimage", "scipy.special._cdflib",
                  "PIL.WebPImagePlugin", "glfw"]
+# surface layer (3D model import): trimesh loads its exchange modules lazily and needs its resources
+# (glTF / 3MF schemas); pycollada reads .dae; lxml + networkx are used by the 3MF loader
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+hiddenimports += collect_submodules("trimesh.exchange") + collect_submodules("collada") +     ["trimesh", "networkx", "lxml.etree", "dateutil"]
+datas += collect_data_files("trimesh")
 
 a = Analysis(
     [os.path.join(ROOT, "scripts", "nimcale_entry.py")],
@@ -43,7 +48,7 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    excludes=["tkinter", "matplotlib", "pytest", "trimesh", "IPython", "pandas", "PyQt5", "PySide6",
+    excludes=["tkinter", "matplotlib", "pytest", "IPython", "pandas", "PyQt5", "PySide6",
               "imgui_bundle.demos_python", "pydantic"],
     noarchive=False,
 )
