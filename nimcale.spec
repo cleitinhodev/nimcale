@@ -40,7 +40,7 @@ hiddenimports = ["glcontext", "moderngl", "fast_simplification", "scipy.ndimage"
 # (glTF / 3MF schemas); pycollada reads .dae; lxml + networkx are used by the 3MF loader
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 hiddenimports += collect_submodules("trimesh.exchange") + collect_submodules("collada") +     ["trimesh", "networkx", "lxml.etree", "dateutil"]
-datas += collect_data_files("trimesh")
+datas += collect_data_files("trimesh") + collect_data_files("collada")
 
 a = Analysis(
     [os.path.join(ROOT, "scripts", "nimcale_entry.py")],
