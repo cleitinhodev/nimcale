@@ -15,6 +15,9 @@ versions follow [Semantic Versioning](https://semver.org/).
   through `PYGLFW_LIBRARY`), pyGLFW's own DLLs are bundled too, and a probe that cannot run is treated as
   inconclusive: the graphics card is still tried. Only a real OpenGL failure (no 3.3 context, or the
   driver crashing the probe) selects the Mesa software renderer.
+- On a PC without usable GPU OpenGL the **second** start failed: a start with the software renderer recorded
+  "OpenGL ok", so the next start skipped the probe and tried the GPU. Only GPU starts are recorded as ok now
+  (found by the new CI smoke test).
 - A program error during start-up is no longer mistaken for an OpenGL problem (no wrong "use the software
   renderer?" question, and the GPU is not marked as failed).
 

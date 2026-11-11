@@ -62,7 +62,12 @@ class Runner:
         app.renderer = Renderer(app.ctx, samples=samples)
         info = app.renderer.info
         print("OpenGL:", info["version"], "|", info["renderer"], flush=True)
-        self.cfg.gl_status = "ok"
+        # remember that the graphics driver works; a software start must not claim that (otherwise the next
+        # start on a PC without usable GPU OpenGL would skip the probe and fail)
+        if not getattr(self, "software", False):
+            self.cfg.gl_status = "ok"
+        elif self.cfg.gl_status == "ok":
+            self.cfg.gl_status = "software"
         self.cfg.save()
         marker = os.path.join(paths.config_dir(), "starting.lock")
         try:
