@@ -1,0 +1,106 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      PYTHONUTF8: "1"
+      NIMCALE_CONFIG_DIR: ${{ github.workspace }}\ci_config
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Unit tests
+        run: python -m pytest -q
+
+      - name: Download Mesa (software OpenGL fallback)
+        run: python scripts/fetch_mesa.py
+
+      - name: Build executable (PyInstaller)
+        run: python -m PyInstaller --noconfirm --clean nimcale.spec
+
+      - name: Smoke test - self test
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\Nimcale\Nimcale.exe -ArgumentList "--selftest" -Wait -PassThru
+          Get-Content "$env:NIMCALE_CONFIG_DIR\nimcale.log"
+          if ($p.ExitCode -ne 0) { throw "selftest failed with exit code $($p.ExitCode)" }
+
+      - name: Smoke test - start the UI with the software renderer and take a screenshot
+        shell: pwsh
+        run: |
+          $shot = "$env:GITHUB_WORKSPACE\ci_shot.png"
+          $p = Start-Process -FilePath dist\Nimcale\Nimcale.exe -ArgumentList "--software","--frames","40","--size","1440x900","--shot",$shot -PassThru
+          if (-not $p.WaitForExit(240000)) { $p.Kill(); Get-Content "$env:NIMCALE_CONFIG_DIR\nimcale.log"; throw "UI did not finish" }
+          Get-Content "$env:NIMCALE_CONFIG_DIR\nimcale.log"
+          if ($p.ExitCode -ne 0) { throw "UI exited with code $($p.ExitCode)" }
+          if (-not (Test-Path $shot)) { throw "no screenshot" }
+
+      - name: Package
+        id: pkg
+        shell: pwsh
+        run: |
+          $ver = (python -c "import nimcale; print(nimcale.__version__)").Trim()
+          $zip = "Nimcale-$ver-windows-x64.zip"
+          Compress-Archive -Path dist\Nimcale -DestinationPath $zip
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          Get-Item $zip | Select-Object Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Nimcale-windows-x64
+          path: ${{ steps.pkg.outputs.zip }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-screenshot
+          path: ci_shot.png
+          if-no-files-found: ignore
+
+      - name: Attach to GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            $notes = ".github/release-notes/$tag.md"
+            $pre = if ($tag -match "-") { "--prerelease" } else { "" }
+            if (Test-Path $notes) {
+              $title = (Get-Content $notes -TotalCount 1).TrimStart("# ").Trim()
+              gh release create $tag $pre --title "$title" --notes-file $notes
+            } else {
+              gh release create $tag $pre --title "Nimcale $tag" --generate-notes
+            }
+          }
+          gh release upload $tag "${{ steps.pkg.outputs.zip }}" --clobber
