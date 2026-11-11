@@ -59,7 +59,7 @@ def _files():
 
 
 # platform-specific functions (only present on that OS), always used inside try/except
-PLATFORM_ONLY = {"glfw.get_win32_window", "glfw.get_cocoa_window", "glfw.get_x11_window"}
+PLATFORM_ONLY = {"glfw.get_win32_window", "glfw.get_cocoa_window", "glfw.get_x11_window", "glfw.get_x11_display"}
 
 
 def test_imgui_bundle_names_exist():
