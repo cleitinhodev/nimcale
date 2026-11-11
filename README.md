@@ -6,7 +6,8 @@
 
 <p align="center">
   <b>Transforme uma imagem + mapa de altura em um relevo 3D pronto para imprimir:</b><br>
-  moedas, medalhas, placas, azulejos e recortes — com exportação HD fechada (watertight).
+  moedas, medalhas, placas, azulejos, recortes e agora também <b>sobre objetos 3D</b> (copos, canecas, vasos...)<br>
+  — com exportação HD fechada (watertight) para Windows e Linux.
 </p>
 
 <p align="center">
@@ -41,6 +42,12 @@
   **prévia do contorno** ao vivo.
 - **Textura** — ajuste (esticar/conter/preencher), escala, deslocamento, rotação e **alinhamento automático**;
   visualização textura / altura / **mistura**; salvar e carregar alinhamento (compatível com o placa3d).
+- **Superfície (objetos 3D)** — nova aba **Superfície**: importe um modelo 3D (OBJ+MTL, STL, PLY, GLB/glTF,
+  3MF, OFF ou DAE) ou escolha um dos **12 modelos de exemplo** e a textura **e** o relevo são aplicados sobre
+  ele — por exemplo, a imagem cobre um copo inteiro. Projeções automática, UV do modelo, cilíndrica, esférica,
+  plana, caixa e decalque; mover, escalar, proporção X/Y separada, girar, emenda, repetir, espelhar;
+  **exportação tudo mesclado** em um único modelo (também em HD) e **"Remover superfície / voltar à placa
+  padrão"** com um clique.
 - **Modelagem** — pincéis de escultura (elevar, rebaixar, suavizar, aplainar, apagar), **desfazer/refazer**,
   espelhar, girar 90°, recortar, medidas reais em **mm** (volume e peso em PLA/prata/ouro), cotas, grade, giro automático.
 - **Exportação** — STL (binário/ASCII), OBJ + MTL + textura, GLB / glTF, PLY com cores, **3MF**, OFF,
@@ -61,37 +68,97 @@
 | ![Medalha](docs/screenshots/medal_gold.png) | ![Exportar](docs/screenshots/export.png) | ![Escultura](docs/screenshots/sculpt.png) |
 | ![Recorte](docs/screenshots/shape_cutout.png) | ![Sobre](docs/screenshots/about.png) | ![日本語](docs/screenshots/lang_ja.png) |
 
-## 🧪 Versão de teste (beta): Importar superfície
+## 🧊 Superfície: relevo sobre objetos 3D (novo na 1.1)
 
-> ⚠️ **Experimental.** A versão estável continua sendo a **1.0.3** (branch `main`). A versão de teste
-> **1.1.0-beta.1** é publicada como *pré-lançamento* a partir do branch `dev/surface` e mostra o selo
-> "VERSÃO DE TESTE" no app.
+Além das camadas de **textura** e **relevo**, a aba **Superfície** coloca a textura e o relevo da placa sobre
+um objeto 3D. Nada foi removido: ao abrir, o Nimcale continua com a moeda padrão e a superfície é um extra.
 
-A nova aba **Superfície** aplica a textura **e** o relevo atuais sobre um objeto 3D (copo, garrafa, caixa...),
-sem remover nenhuma opção existente. Ao abrir, o app continua mostrando a moeda padrão, sem superfície.
+1. Abra a aba **Superfície** (ou *Arquivo → Importar superfície*, `Ctrl+Shift+U`, ou arraste o arquivo 3D
+   para a janela) e importe um modelo — ou clique em um dos **Modelos de exemplo**.
+2. A projeção é escolhida sozinha (cilindro para copos e garrafas, esfera, objeto plano, caixa) e a imagem
+   cobre a lateral inteira. Ajuste à vontade: **mover**, **escala**, **proporção de largura/altura separadas**,
+   rotação, posição da emenda, repetir (ladrilhar), espelhar, só a face externa / também topo e fundo,
+   usar o contorno da placa como máscara.
+3. O relevo usa a profundidade, inverter e suavização de sempre e desloca a superfície pelas normais com
+   subdivisão adaptativa (controle de **detalhe**). O modelo pode ser girado, redimensionado (mm) e colorido.
+4. **Exporte tudo mesclado** em um único modelo: STL, OBJ + MTL + textura, GLB/glTF, PLY, 3MF ou OFF, inclusive
+   na **exportação HD** (até 4 milhões de triângulos). Se o modelo importado era fechado, o resultado também é.
+5. Quer voltar? **Remover superfície / voltar à placa padrão** (botão vermelho na aba ou menu *Arquivo*) —
+   pode desfazer com `Ctrl+Z`, e todos os ajustes da placa/moeda continuam como estavam.
 
-- **Formatos:** OBJ (+MTL), STL, PLY, GLB/glTF, 3MF, OFF e DAE (Collada). FBX **não** é suportado.
-- **12 modelos de exemplo:** copo, caneca com alça, garrafa, vaso, bola, caixa, lata, prato, chaveiro,
-  placa tipo capinha, porta-canetas e cúpula de luminária.
-- Projeções automática, UV do modelo, cilíndrica, esférica, plana, caixa (triplanar) e decalque; ajuste,
-  posição, escala, proporção X/Y, rotação, emenda, repetir, espelhar, máscara pelo recorte da placa.
-- Relevo deslocando a superfície pelas normais com subdivisão adaptativa; exportação tudo mesclado
-  (STL, OBJ, GLB/glTF, PLY, 3MF, OFF, também em HD), fechado se o modelo original for fechado.
-- **Remover superfície / voltar à placa padrão** com um clique (desfazível), mantendo todos os ajustes.
+| Formato | Importar superfície | | Modelos de exemplo |
+|---|---|---|---|
+| OBJ (+MTL), STL, PLY | ✅ | | copo, caneca com alça, garrafa, vaso, |
+| GLB / glTF, 3MF, OFF | ✅ | | bola, caixa, lata, prato, chaveiro, |
+| DAE (Collada) | ✅ | | placa tipo capinha, porta-canetas, |
+| FBX | ❌ (converta para GLB/OBJ, ex.: no Blender) | | cúpula de luminária |
 
-| Caneca | Caixa (repetir) |
-|---|---|
-| ![Caneca](docs/screenshots/surface_mug.png) | ![Caixa](docs/screenshots/surface_box.png) |
+Modelos grandes (mais de 2 milhões de triângulos) são simplificados ao importar; vários objetos no mesmo
+arquivo são unidos; metros são convertidos para mm; normais que faltam são calculadas.
 
-## 📥 Download (Windows)
+| Caneca | Caixa (repetir) | Vaso |
+|---|---|---|
+| ![Caneca](docs/screenshots/surface_mug.png) | ![Caixa](docs/screenshots/surface_box.png) | ![Vaso](docs/screenshots/surface_vase.png) |
+| ![Modelos de exemplo](docs/screenshots/surface_samples.png) | ![Copo (pt-BR)](docs/screenshots/surface_cup_pt.png) | ![Linux](docs/screenshots/linux_main.png) |
 
-Baixe o `Nimcale-<versão>-windows-x64.zip` da **[versão estável mais recente](https://github.com/cleitinhodev/nimcale/releases/latest)**,
-extraia a pasta e execute **`Nimcale.exe`**. Não precisa instalar nada.
+## 📥 Download
+
+Tudo na **[versão estável mais recente](https://github.com/cleitinhodev/nimcale/releases/latest)** — não
+precisa instalar nada. Versões de teste (marcadas como *pré-lançamento*) ficam em
+[todas as versões](https://github.com/cleitinhodev/nimcale/releases).
+
+### 🪟 Windows 10 / 11 (64 bits)
+
+1. Baixe `Nimcale-<versão>-windows-x64.zip`.
+2. Extraia a pasta e execute **`Nimcale.exe`**.
 
 > O executável ainda não é assinado digitalmente: se o Windows SmartScreen avisar, clique em
-> *Mais informações → Executar assim mesmo*.
+> *Mais informações → Executar assim mesmo*. Sem placa de vídeo compatível, o Nimcale usa o Mesa
+> llvmpipe incluído automaticamente.
 
-Configurações e log ficam em `%APPDATA%\Nimcale` (no Linux: `~/.config/Nimcale`).
+Configurações e log: `%APPDATA%\Nimcale`. Exportações e capturas: `Documentos\Nimcale`.
+
+### 🐧 Linux (x86_64)
+
+Funciona em distribuições com **glibc 2.35 ou mais nova** (Ubuntu 22.04+, Linux Mint 21+, Debian 12+,
+Fedora 36+, openSUSE Tumbleweed, Arch...) com OpenGL 3.3 (Mesa ou driver da NVIDIA/AMD/Intel), em X11 ou Wayland
+(via XWayland). Há duas opções:
+
+**AppImage (um arquivo só):**
+
+```bash
+chmod +x Nimcale-<versão>-x86_64.AppImage
+./Nimcale-<versão>-x86_64.AppImage
+```
+
+> AppImage precisa do FUSE 2. Se aparecer *"dlopen(): error loading libfuse.so.2"*, instale `libfuse2`
+> (Ubuntu 22.04: `sudo apt install libfuse2`; Ubuntu 24.04+: `sudo apt install libfuse2t64`) ou rode sem FUSE:
+> `./Nimcale-<versão>-x86_64.AppImage --appimage-extract-and-run`.
+
+**tar.gz (pasta):**
+
+```bash
+tar -xzf Nimcale-<versão>-linux-x86_64.tar.gz
+cd Nimcale-<versão>-linux-x86_64
+chmod +x Nimcale          # normalmente já vem executável
+./Nimcale
+./install.sh              # opcional: adiciona o Nimcale (com ícone) ao menu de aplicativos
+                          # remover do menu: ./install.sh --uninstall
+```
+
+Pacotes do sistema (a maioria das distribuições com desktop já tem). Se faltar algo, no Ubuntu/Debian:
+
+```bash
+sudo apt install libgl1 libegl1 libgl1-mesa-dri libxrandr2 libxinerama1 libxcursor1 libxi6 libxkbcommon0
+# opcionais: zenity (janelas de erro), xdg-utils (abrir links/pastas), x11-utils (barra de título escura)
+```
+
+Fedora: `sudo dnf install mesa-libGL mesa-libEGL mesa-dri-drivers libXrandr libXinerama libXcursor libXi`.
+Sem driver de vídeo funcionando (VMs, servidores): `./Nimcale --software` usa o Mesa llvmpipe do sistema
+(o Nimcale também troca sozinho se o driver falhar).
+
+Configurações e log: `~/.config/Nimcale` (ou `$XDG_CONFIG_HOME/Nimcale`). Exportações e capturas:
+`~/Documents/Nimcale` (ou `~/Nimcale`).
 
 ## ⌨️ Atalhos principais
 
@@ -100,6 +167,7 @@ Configurações e log ficam em `%APPDATA%\Nimcale` (no Linux: `~/.config/Nimcale
 | Ctrl+O | importar textura + mapa | Ctrl+Shift+O | abrir projeto |
 | Ctrl+T / Ctrl+M | importar textura / mapa de altura | Ctrl+S / Ctrl+Shift+S | salvar projeto |
 | Ctrl+E | janela de exportação | Ctrl+Shift+E | STL HD rápido |
+| Ctrl+Shift+U | importar superfície (objeto 3D) | | |
 | Ctrl+Z / Ctrl+Y | desfazer / refazer | Ctrl+Q | **sair** |
 | T | textura / altura / mistura | B | placa / recorte do objeto |
 | F | wireframe | U | iluminação |
@@ -129,7 +197,11 @@ pip install -r requirements.txt
 python -m nimcale                       # moeda padrão
 python -m nimcale textura.png altura.png
 python -m nimcale projeto.nimcale
+python -m nimcale --surface caneca.obj  # já abre com uma superfície (ou um exemplo: --surface mug)
 ```
+
+Precisa do Python 3.10–3.13. No Linux, instale também os pacotes do sistema listados no download
+(e `python3-venv` no Ubuntu/Debian).
 
 Opções úteis: `--software` (força o renderizador Mesa), `--gpu`, `--lang en`, `--reset-layout`,
 `--selftest`, `--shot arquivo.png` (captura de tela e sai), `--version`.
@@ -142,29 +214,51 @@ python -m pytest
 ```
 
 Os testes cobrem o pipeline do relevo, malhas fechadas para todas as formas, todos os formatos de exportação
-(verificados com `trimesh`), a exportação HD (milhões de triângulos, sólido fechado), escultura, desfazer/refazer,
-idiomas completos e configurações.
+(verificados com `trimesh`), a exportação HD (milhões de triângulos, sólido fechado), o recorte automático,
+a camada **Superfície** (importação dos 8 formatos, projeções, deslocamento, exportação mesclada fechada, HD,
+remover/voltar à placa com desfazer), escultura, desfazer/refazer, idiomas completos e configurações.
 
 ### Gerar o executável do Windows
 
 - **No Windows:** `.\scripts\build_windows.ps1` (precisa do Python 3.10–3.13 e do 7-Zip).
 - **No Linux com Wine:** `scripts/build_wine.sh` (Python do Windows dentro do Wine, ver o script).
-- **GitHub Actions:** cada push compila e testa no `windows-latest`; ao enviar uma tag `v*` o zip é anexado ao release.
 
 O build usa PyInstaller (`nimcale.spec`) e baixa o Mesa llvmpipe com `scripts/fetch_mesa.py`.
+
+### Gerar o build do Linux
+
+```bash
+pip install -r requirements-dev.txt        # inclui o PyInstaller
+python -m PyInstaller --noconfirm --clean nimcale.spec      # -> dist/Nimcale/Nimcale
+scripts/package_linux.sh dist/Nimcale .    # -> Nimcale-<versão>-linux-x86_64.tar.gz (+ AppImage)
+scripts/ci_smoke_linux.sh dist/Nimcale     # testes de fumaça (precisa de xvfb-run)
+```
+
+O AppImage é gerado se o `appimagetool` estiver no PATH (ou em `APPIMAGETOOL=/caminho`); para pular use
+`--no-appimage`. Para rodar em distribuições mais antigas, compile na mais antiga que quiser suportar
+(o CI usa Ubuntu 22.04). O Python precisa ter a biblioteca compartilhada (`libpython3.x.so`).
+
+### GitHub Actions
+
+Cada push compila e testa no **Windows** (`windows-latest`) e no **Linux** (`ubuntu-22.04`): testes
+unitários, build com PyInstaller e testes de fumaça que **abrem o programa compilado** (Windows: probe do GPU,
+Mesa, inicialização real, selftest; Linux: o mesmo sob `xvfb` com Mesa llvmpipe, mais uma captura da caneca
+de exemplo e o AppImage). Ao publicar uma tag `v*`, o zip do Windows, o tar.gz e o AppImage do Linux são
+anexados ao release.
 
 ## 📁 Estrutura
 
 ```
 nimcale/
-  core/      imagens, parâmetros, pipeline do relevo, formas, malha fechada, alinhamento
+  core/      imagens, parâmetros, pipeline do relevo, formas, malha fechada, alinhamento, superfície 3D
   export/    escritores STL/OBJ/GLB/PLY/3MF/OFF/PNG e o trabalho de exportação HD
   tools/     histórico (desfazer/refazer) e escultura
   render/    câmera, shaders e renderizador moderngl
   ui/        tema, fontes, painéis, janelas, viewport, menus/barra de ferramentas
   i18n/      traduções (locales/*.json)
-  assets/    ícones, fontes, moeda padrão
-scripts/     build, fontes, ícones, Mesa, verificação de traduções
+  assets/    ícones, fontes, moeda padrão, modelos de exemplo (samples/*.ply)
+packaging/   Linux: nimcale.desktop e install.sh
+scripts/     build (Windows/Linux), empacotamento, testes de fumaça, fontes, ícones, Mesa, exemplos, traduções
 tests/       testes pytest
 ```
 
@@ -194,6 +288,13 @@ cut-out shapes — and exports **watertight high-definition meshes**.
 - Relief controls: depth, base thickness, smoothing, threshold, brightness/contrast, levels, gamma curve,
   invert, noise and detail enhancement; cutout shapes (image outline, circle, ellipse, rounded rectangle,
   hexagon, octagon) with rim and bevel; presets (coin, medal, plate, contour, tile).
+- **New in 1.1 — Surface tab:** put the texture **and** relief onto a 3D model. Import OBJ (+MTL), STL, PLY,
+  GLB/glTF, 3MF, OFF or DAE (no FBX), or pick one of **12 sample models** (cup, mug with handle, bottle, vase,
+  ball, box, can, plate, keychain tag, phone-case slab, pen holder, lamp shade). Automatic / UV / cylindrical /
+  spherical / planar / box / decal projection; move, scale, separate X/Y proportion, rotation, seam, tile,
+  mirror, outer wall only; displacement along the normals with adaptive subdivision; **merged export** of
+  everything in one model (also HD, watertight when the input is closed); one-click, undoable
+  **Remove surface / back to the default plate** that keeps every plate setting. Startup is still the default coin.
 - Texture fit/scale/offset/rotation, **auto-align**, texture/height/**mix** views, alignment save/load.
 - **Automatic cutout** that follows each imported image (dark / white / transparent / picked-colour background,
   height map, texture alpha or texture colour key) with fine tuning and a live outline preview.
@@ -203,26 +304,37 @@ cut-out shapes — and exports **watertight high-definition meshes**.
   normal map, texture PNG, turntable **GIF**, HD/transparent screenshots.
 - **HD export** independent of the preview (up to 6144 samples on the longest side, millions of triangles),
   bicubic upsampling, progress + cancel, verified closed solid, optional adaptive decimation.
-- `.nimcale` projects, recent files, drag & drop.
+- `.nimcale` projects (surfaces included), recent files, drag & drop of images and 3D models.
 - Modern docking UI with an animated purple/pink neon theme (can be disabled), a native title bar that follows
   the OS light/dark theme (or dark / light / theme colour), and **12 languages**
   with auto-detection (pt-BR default, English fallback).
-- OpenGL 3.3 with automatic fallback to the bundled **Mesa llvmpipe** software renderer.
+- OpenGL 3.3 with automatic fallback to software rendering (bundled **Mesa llvmpipe** on Windows, the
+  system Mesa on Linux).
 
-**Test version (beta) - Import surface:** the pre-release **1.1.0-beta.1** (branch `dev/surface`, marked
-as a test build; stable stays **1.0.3**) adds a *Surface* tab that puts the texture and relief onto a 3D
-model (OBJ+MTL, STL, PLY, GLB/glTF, 3MF, OFF, DAE; no FBX) with automatic / UV / cylindrical / spherical /
-planar / box / decal projection, placement controls, displacement along normals, 12 sample models, merged
-watertight export (also HD) and a one-click *Remove surface* that returns to the normal plate.
+**Download** from [the latest stable release](https://github.com/cleitinhodev/nimcale/releases/latest):
 
-**Download:** get `Nimcale-<version>-windows-x64.zip` from
-[the latest stable release](https://github.com/cleitinhodev/nimcale/releases/latest), extract and run `Nimcale.exe`.
+- **Windows 10/11 x64:** `Nimcale-<version>-windows-x64.zip` — extract and run `Nimcale.exe`
+  (unsigned: on a SmartScreen warning click *More info → Run anyway*). Settings/log: `%APPDATA%\Nimcale`.
+- **Linux x86_64** (glibc 2.35+: Ubuntu 22.04+, Mint 21+, Debian 12+, Fedora 36+...; OpenGL 3.3 via Mesa or
+  the GPU vendor driver; X11 or Wayland through XWayland):
+  - AppImage: `chmod +x Nimcale-<version>-x86_64.AppImage && ./Nimcale-<version>-x86_64.AppImage`
+    (needs FUSE 2: `sudo apt install libfuse2` / `libfuse2t64` on Ubuntu 24.04+, or add `--appimage-extract-and-run`).
+  - tar.gz: `tar -xzf Nimcale-<version>-linux-x86_64.tar.gz && cd Nimcale-<version>-linux-x86_64 && ./Nimcale`;
+    `./install.sh` adds it with its icon to the application menu (`./install.sh --uninstall` removes it).
+  - If libraries are missing (Ubuntu/Debian): `sudo apt install libgl1 libegl1 libgl1-mesa-dri libxrandr2
+    libxinerama1 libxcursor1 libxi6 libxkbcommon0`. No working GPU driver: `./Nimcale --software`.
+  - Settings/log: `~/.config/Nimcale`; exports: `~/Documents/Nimcale`.
 
-**From source:** `pip install -r requirements.txt` then `python -m nimcale [texture heightmap | project.nimcale]`.
+**From source** (Python 3.10–3.13): `pip install -r requirements.txt` then
+`python -m nimcale [texture heightmap | project.nimcale] [--surface model.obj|mug]`.
 Tests: `pip install -r requirements-dev.txt && python -m pytest`.
-Windows build: `scripts/build_windows.ps1`, `scripts/build_wine.sh` or the GitHub Actions workflow.
+Windows build: `scripts/build_windows.ps1`, `scripts/build_wine.sh` or GitHub Actions.
+Linux build: `python -m PyInstaller --noconfirm --clean nimcale.spec && scripts/package_linux.sh dist/Nimcale .`
+(tar.gz, plus an AppImage when `appimagetool` is available); smoke tests: `scripts/ci_smoke_linux.sh dist/Nimcale`.
+CI builds and smoke-tests both (Windows on `windows-latest`, Linux on `ubuntu-22.04` under xvfb) and attaches
+all packages to tagged releases.
 
 **Note:** `Esc` no longer quits (it closes windows / leaves sculpt mode). Use **Ctrl+Q** to quit.
 
 **License:** GPL-3.0-or-later. Third-party notices in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-Website: <https://www.bugzinho.com/> · Donate: <https://www.bugzinho.com/donate>
+Website: <https://www.bugzinho.com/> · Project: <https://github.com/cleitinhodev/nimcale> · Donate: <https://www.bugzinho.com/donate>

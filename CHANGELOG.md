@@ -3,6 +3,43 @@
 All notable changes to Nimcale are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-11-11
+
+Stable. Promotes the 1.1.0-beta.1 test build (Surface layer) to the stable version and adds a Linux build.
+
+### Added
+- **Surface (3D model) layer** - everything from [1.1.0-beta.1](#110-beta1---2026-11-11-test-pre-release-branch-devsurface),
+  now stable: *Surface* tab, import of OBJ (+MTL), STL, PLY, GLB/glTF, 3MF, OFF and DAE (no FBX), 12 sample
+  models in a *Sample models* picker, automatic / UV / cylindrical / spherical / planar / box / decal
+  projections, placement controls (fit, move, scale, separate X/Y proportion, rotation, seam, tile, mirror,
+  plate-outline mask, outer wall only / top and bottom), displacement along the normals with adaptive
+  subdivision, merged export in every 3D format including HD (watertight when the input is closed), and a
+  one-click undoable **Remove surface / back to the default plate**. Startup is still the default coin.
+- **Linux x86_64 build** (built on Ubuntu 22.04, glibc 2.35+):
+  - `Nimcale-<version>-linux-x86_64.tar.gz` (folder with the program, icons, `nimcale.desktop` and an
+    `install.sh` that adds Nimcale with its icon to the application menu of the current user) and
+    `Nimcale-<version>-x86_64.AppImage` (single file).
+  - Window / taskbar icon and `WM_CLASS` (`nimcale` / `Nimcale`) so the desktop matches the window with the
+    `.desktop` file; dark title bar via `_GTK_THEME_VARIANT` on X11.
+  - OpenGL 3.3 probe in a child process on Linux too, with automatic fallback to the system Mesa
+    llvmpipe software renderer (`--software` forces it).
+  - Error dialogs through `zenity` / `kdialog` when available; links and folders open with `xdg-open`
+    using the user's original library path (not the bundled one).
+  - Settings and log in `~/.config/Nimcale` (`$XDG_CONFIG_HOME`), exports in `~/Documents/Nimcale`.
+- CI: a Linux job (unit tests under xvfb, PyInstaller build, tar.gz + AppImage packaging and smoke tests that
+  launch the packaged binary and the AppImage under xvfb with Mesa: GL probes, first/second start, software
+  renderer screenshot, surface sample screenshot, selftest). Tagged releases get the Windows zip, the
+  tar.gz and the AppImage.
+- The frozen-build selftest also checks the Surface layer (all 8 import formats and a watertight export).
+
+### Changed
+- Version 1.1.0: the "test version" badge, start-up notice and About line only appear in pre-release builds.
+- README and docs updated (Surface tab, downloads and build instructions for Windows and Linux).
+
+### Fixed
+- DAE (Collada) import in the packaged builds (pycollada's schema files were missing).
+- Stable builds crashed while setting the window title (a test-build-only import shadowed the translator).
+
 ## [1.1.0-beta.1] - 2026-11-11 (test pre-release, branch `dev/surface`)
 
 **Experimental test build** published as a GitHub *pre-release* from the `dev/surface` branch. The stable
