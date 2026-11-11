@@ -43,7 +43,7 @@ def outline_preview_image(hf, sdf, long_side=256):
     gmax = float(g[inside].max()) if inside.any() else 1.0
     g = g / max(1e-6, gmax)
     rgb = np.stack([g * 0.85 + 0.1] * 3, -1)
-    rgb[~inside] = rgb[~inside] * 0.25 + np.array([0.05, 0.03, 0.08]) * 0.75
+    rgb[~inside] = rgb[~inside] * 0.15 + np.array([0.06, 0.03, 0.10]) * 0.85
     edge = inside & ~(np.roll(inside, 1, 0) & np.roll(inside, -1, 0) & np.roll(inside, 1, 1) & np.roll(inside, -1, 1))
     rgb[edge] = (1.0, 0.25, 0.85)
     a = np.full(g.shape + (1,), 1.0)
@@ -268,9 +268,15 @@ class Panels:
                                    tip=tr("tip.threshold"))
         info = app.result.info if app.result is not None else {}
         if info.get("source"):
+            imgui.push_text_wrap_pos(0.0)
             W.label(tr("cut.detected", src=tr("outline." + info["source"]),
                        bg=tr("bg." + info.get("bg", "auto")) if info.get("bg") != "border" else tr("bg.border"),
                        pct=100.0 * info.get("coverage", 0.0)))
+            imgui.pop_text_wrap_pos()
+        app.view.show_outline = W.checkbox("mprev", tr("p.outline_preview"), app.view.show_outline,
+                                           tip=tr("tip.outline_preview"))
+        if app.view.show_outline:
+            self.outline_preview()
         p.mask_grow = W.slider("mgrow", tr("p.mask_grow"), p.mask_grow, -40.0, 40.0, 0.0, "%+.1f px",
                                tip=tr("tip.mask_grow"))
         p.mask_smooth = W.slider("msmooth", tr("p.mask_smooth"), p.mask_smooth, 0.0, 20.0, 0.0, "%.1f px",
@@ -282,10 +288,6 @@ class Panels:
         if not p.keep_largest:
             p.min_island = W.slider("misland", tr("p.min_island"), p.min_island, 0.0, 5.0, D.min_island, "%.2f %%",
                                     log=False, tip=tr("tip.min_island"))
-        app.view.show_outline = W.checkbox("mprev", tr("p.outline_preview"), app.view.show_outline,
-                                           tip=tr("tip.outline_preview"))
-        if app.view.show_outline:
-            self.outline_preview()
 
     def pick_border_color(self):
         app, p = self.app, self.app.params
