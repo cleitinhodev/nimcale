@@ -34,6 +34,11 @@
 - **Formas** — placa inteira ou **recorte do objeto**; contornos: contorno da imagem, círculo, elipse,
   retângulo arredondado, hexágono, octógono; **borda** (aro de moeda) e **chanfro**.
   Predefinições: moeda, medalha, placa, contorno, azulejo.
+- **Recorte automático** — ao importar uma imagem nova o contorno segue o objeto (não fica redondo):
+  fundo escuro, branco, transparente ou uma cor escolhida é detectado sozinho; o contorno pode vir do mapa
+  de altura, da transparência ou da cor da textura. Ajuste fino: limiar/tolerância, expandir/encolher,
+  suavizar, maciez da borda, preencher buracos, remover ilhas pequenas, manter só o maior objeto e
+  **prévia do contorno** ao vivo.
 - **Textura** — ajuste (esticar/conter/preencher), escala, deslocamento, rotação e **alinhamento automático**;
   visualização textura / altura / **mistura**; salvar e carregar alinhamento (compatível com o placa3d).
 - **Modelagem** — pincéis de escultura (elevar, rebaixar, suavizar, aplainar, apagar), **desfazer/refazer**,
@@ -54,7 +59,7 @@
 | | | |
 |---|---|---|
 | ![Medalha](docs/screenshots/medal_gold.png) | ![Exportar](docs/screenshots/export.png) | ![Escultura](docs/screenshots/sculpt.png) |
-| ![Forma](docs/screenshots/shape.png) | ![Sobre](docs/screenshots/about.png) | ![日本語](docs/screenshots/lang_ja.png) |
+| ![Recorte](docs/screenshots/shape_cutout.png) | ![Sobre](docs/screenshots/about.png) | ![日本語](docs/screenshots/lang_ja.png) |
 
 ## 📥 Download (Windows)
 
@@ -168,6 +173,8 @@ cut-out shapes — and exports **watertight high-definition meshes**.
   invert, noise and detail enhancement; cutout shapes (image outline, circle, ellipse, rounded rectangle,
   hexagon, octagon) with rim and bevel; presets (coin, medal, plate, contour, tile).
 - Texture fit/scale/offset/rotation, **auto-align**, texture/height/**mix** views, alignment save/load.
+- **Automatic cutout** that follows each imported image (dark / white / transparent / picked-colour background,
+  height map, texture alpha or texture colour key) with fine tuning and a live outline preview.
 - Sculpt brushes (raise, lower, smooth, flatten, erase), undo/redo, mirror, rotate, crop,
   real-world measurements in **mm** (volume, PLA/silver/gold weight), turntable.
 - Export to STL (binary/ASCII), OBJ+MTL+texture, GLB/glTF, PLY with colours, **3MF**, OFF, 16-bit height map,

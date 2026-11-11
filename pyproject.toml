@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nimcale"
-version = "1.0.2"
+version = "1.0.3"
 description = "Turn an image + height map into a 3D relief model (coins, medals, plates) and export watertight HD meshes."
 readme = "README.md"
 license = "GPL-3.0-or-later"

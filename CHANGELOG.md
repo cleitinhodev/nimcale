@@ -3,6 +3,35 @@
 All notable changes to Nimcale are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] - 2026-11-11
+
+Stable. Includes everything from 1.0.2 (title bar follows the OS theme) plus:
+
+### Fixed
+- **Imported images were always cut as a circle.** The default coin preset's circular outline stayed active
+  after importing another height map (or texture + height map). Now a new height map switches the outline
+  to the object's own contour, analysing the new image, and the coin-only settings (rim, bevel) are reset -
+  unless you picked a shape, preset or edge setting yourself, which is then kept. The circle only applies
+  to the default coin or when chosen explicitly. Opening a project keeps its saved shape.
+
+### Added
+- Automatic background detection for the contour: **dark**, **white** or **transparent** backgrounds
+  (the height map's alpha channel is now kept, also inside `.nimcale` projects) or a **picked colour**
+  with tolerance.
+- Fine tuning in *Shape → Outline*: outline source (automatic / height map threshold / texture alpha /
+  texture colour key / circle / ellipse / rounded rectangle / hexagon / octagon), background mode,
+  threshold or tolerance, expand / shrink (px), edge smoothing, edge softness, fill holes, remove small
+  islands (minimum area), keep only the largest object, and a **live outline preview** (magenta contour,
+  cut-away area dimmed) plus the detected background and coverage.
+- The same contour is used for the HD export (pixel sizes refer to the original image, so preview and
+  export match). Translations in all 12 languages; tests for non-circular imports (star on black, white,
+  transparent and coloured backgrounds), texture alpha / colour key, grow/shrink, islands, largest object,
+  user choice kept, project alpha round trip and a watertight HD export.
+
+### Note
+- v1.0.2 had already been published when this fix was ready; releases are never replaced, so the fix
+  ships as **1.0.3**, the new stable release.
+
 ## [1.0.2] - 2026-11-11
 
 First **stable** release of Nimcale 1.0.
