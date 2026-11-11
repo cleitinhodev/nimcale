@@ -459,9 +459,12 @@ class NimcaleApp:
         with open(path, "r", encoding="utf-8") as f:
             d = json.load(f)
         self.commit_now()
-        if "fit" not in d:
-            d["fit"] = 0
-        self.params.update({k: d[k] for k in ("fit", "sx", "sy", "ox", "oy", "rot") if k in d})
+        # placa3d files have no "fit"/"rot": they were calibrated with "stretch" and no rotation
+        a = dict(fit=0, sx=1.0, sy=1.0, ox=0.0, oy=0.0, rot=0.0)
+        for k in a:
+            if k in d:
+                a[k] = int(d[k]) if k == "fit" else float(d[k])
+        self.params.update(a)
         self.say(tr("msg.align_loaded", name=os.path.basename(path)), "ok")
 
     def reset_all(self):

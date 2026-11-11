@@ -30,6 +30,7 @@ def parse_args(argv=None):
     ap.add_argument("--tab", type=int, default=None, help="about window tab (1..4) or properties tab")
     ap.add_argument("--props-tab", default=None, help="properties tab to select (model, shape, texture, sculpt, scene)")
     ap.add_argument("--do", default="", help=argparse.SUPPRESS)   # comma separated actions (tests)
+    ap.add_argument("--do-at", type=int, default=3, help=argparse.SUPPRESS)
     ap.add_argument("--demo-sculpt", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--reset-layout", action="store_true", help="forget the saved window layout")
     ap.add_argument("--selftest", action="store_true", help="run a quick non-GUI self test and exit")

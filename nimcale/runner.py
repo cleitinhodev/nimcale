@@ -167,7 +167,7 @@ class Runner:
                 app.about_tab = a.tab
         if a.props_tab and self.frame == 2:
             app.props_tab_req = a.props_tab
-        if a.do and self.frame == 3:
+        if a.do and self.frame == a.do_at:
             for act in a.do.split(","):
                 if act.startswith("view:"):
                     self.vp.view_preset(act[5:])
@@ -177,6 +177,25 @@ class Runner:
                     cur = getattr(obj, k)
                     setattr(obj, k, type(cur)(float(v)) if not isinstance(cur, (str, bool)) else
                             (v == "1" if isinstance(cur, bool) else v))
+                elif act.startswith("call:"):
+                    # call:method|arg1|arg2  (automated tests: save/open project, alignment, GIF...)
+                    name, *args = act[5:].split("|")
+
+                    def conv(x):
+                        for t in (int, float):
+                            try:
+                                return t(x)
+                            except ValueError:
+                                pass
+                        return x
+                    args = [conv(x) for x in args]
+                    try:
+                        r = getattr(app, name)(*args)
+                        print("call %s -> %r" % (name, r), flush=True)
+                    except Exception as e:
+                        print("call %s FAILED: %s" % (name, e), flush=True)
+                elif act.startswith("drop:"):
+                    app.handle_drops(act[5:].split(";"))
                 else:
                     app.pending.append(act)
         if a.demo_sculpt and self.frame == 4:
