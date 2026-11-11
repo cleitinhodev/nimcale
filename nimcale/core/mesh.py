@@ -359,8 +359,17 @@ def estimate_triangles(sdf, res=None):
 def decimate(mesh, target_reduction, progress=None):
     """Adaptive simplification (quadric error); keeps detail where curvature is high."""
     import fast_simplification
-    P, F = fast_simplification.simplify(mesh.P.astype(np.float32), mesh.F.astype(np.int32),
-                                        target_reduction=float(target_reduction), agg=7)
+    best = None
+    # aggressive settings can create non-manifold fins on thin walls; keep the first closed result
+    for agg in (5, 3, 2, 1):
+        P, F = fast_simplification.simplify(mesh.P.astype(np.float32), mesh.F.astype(np.int32),
+                                            target_reduction=float(target_reduction), agg=agg)
+        if check_closed(F)["watertight"]:
+            best = (P, F)
+            break
+        if best is None:
+            best = (P, F)
+    P, F = best
     P = P.astype(np.float32)
     F = F.astype(np.uint32)
     m = Mesh(P, F, None, None, len(F), 0, 0, mesh.size)

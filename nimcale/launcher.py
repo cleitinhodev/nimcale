@@ -20,6 +20,7 @@ def parse_args(argv=None):
     ap.add_argument("--software", action="store_true", help="force the Mesa software OpenGL renderer")
     ap.add_argument("--gpu", action="store_true", help="force the GPU (system) OpenGL driver")
     ap.add_argument("--probe-gl", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--probe-out", help=argparse.SUPPRESS)
     ap.add_argument("--lang", help="UI language code (pt-BR, en, es, ...)")
     ap.add_argument("--size", default="1440x900", help="initial window size WxH")
     ap.add_argument("--shot", help="save a screenshot of the whole window after --frames frames, then quit")
@@ -117,8 +118,17 @@ def enable_software_gl():
         return False
 
 
-def probe_gl():
-    """Child-process check: can we get an OpenGL 3.3 core context? Prints the renderer."""
+def probe_gl(out_path=None):
+    """Child-process check: can we get an OpenGL 3.3 core context? Prints the renderer.
+
+    The windowed exe has no stdout, so the result is (also) written to ``out_path``."""
+    if out_path:
+        try:
+            sys.stdout = open(out_path, "w", encoding="utf-8", buffering=1)
+        except OSError:
+            pass
+    elif sys.stdout is None:
+        sys.stdout = open(os.devnull, "w")
     try:
         import glfw
         if not glfw.init():
@@ -156,16 +166,29 @@ def self_cmd(*extra):
 
 
 def run_probe(software=False, timeout=25):
-    args = ["--probe-gl"] + (["--software"] if software else [])
+    import tempfile
+    fd, out_path = tempfile.mkstemp(prefix="nimcale_probe_", suffix=".txt")
+    os.close(fd)
+    args = ["--probe-gl", "--probe-out", out_path] + (["--software"] if software else [])
     try:
         kw = {}
         if sys.platform == "win32":
             kw["creationflags"] = 0x08000000      # CREATE_NO_WINDOW
-        r = subprocess.run(self_cmd(*args), capture_output=True, text=True, timeout=timeout, **kw)
-        out = (r.stdout or "") + (r.stderr or "")
+        r = subprocess.run(self_cmd(*args), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=timeout, **kw)
+        try:
+            with open(out_path, encoding="utf-8", errors="replace") as f:
+                out = f.read()
+        except OSError:
+            out = ""
         return r.returncode == 0 and "PROBE OK" in out, out.strip()[-400:]
     except Exception as e:
         return False, str(e)
+    finally:
+        try:
+            os.remove(out_path)
+        except OSError:
+            pass
 
 
 def choose_renderer(a, cfg):
@@ -226,7 +249,7 @@ def main(argv=None):
     if a.probe_gl:
         if a.software:
             enable_software_gl()
-        return probe_gl()
+        return probe_gl(a.probe_out)
     log = setup_logging()
     print("%s %s | Python %s | %s" % (APP_NAME, __version__, sys.version.split()[0], sys.platform), flush=True)
     if a.selftest:
