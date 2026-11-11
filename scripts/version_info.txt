@@ -5,12 +5,12 @@ VSVersionInfo(
     StringFileInfo([StringTable('040904B0', [
       StringStruct('CompanyName', 'bugzinho.com'),
       StringStruct('FileDescription', 'Nimcale - 3D relief maker'),
-      StringStruct('FileVersion', '1.1.0-beta.1'),
+      StringStruct('FileVersion', '1.1.0'),
       StringStruct('InternalName', 'Nimcale'),
       StringStruct('LegalCopyright', 'Copyright (C) 2026 cleitinhodev - GPL-3.0-or-later'),
       StringStruct('OriginalFilename', 'Nimcale.exe'),
       StringStruct('ProductName', 'Nimcale'),
-      StringStruct('ProductVersion', '1.1.0-beta.1')])]),
+      StringStruct('ProductVersion', '1.1.0')])]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]
 )
