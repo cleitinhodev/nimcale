@@ -84,6 +84,29 @@ class ModelParams:
     rot: float = 0.0
     # --- real world
     size_mm: float = 40.0
+    # --- surface layer (core/surface.py): texture + relief on an imported 3D model
+    srf_proj: str = "auto"        # auto | uv | cylinder | sphere | planar | box | decal
+    srf_axis: str = "top"         # front | back | left | right | top | bottom
+    srf_ou: float = 0.0           # offset of the image (fraction of its width / height)
+    srf_ov: float = 0.0
+    srf_scale: float = 1.0
+    srf_sx: float = 1.0           # width proportion
+    srf_sy: float = 1.0           # height proportion (when not locked)
+    srf_lock: bool = True         # keep the image proportion
+    srf_rot: float = 0.0          # degrees
+    srf_seam: float = 0.0         # degrees (cylinder / sphere: where the image starts)
+    srf_tile: bool = False        # repeat the image instead of a single copy
+    srf_mirror: bool = False
+    srf_use_cut: bool = False     # use the plate outline (cutout) as the decal mask
+    srf_detail: int = 320         # preview relief samples across the image (subdivision density)
+    srf_up: str = "auto"          # auto | z | y | x  (up axis of the file)
+    srf_rx: float = 0.0           # model rotation (degrees)
+    srf_ry: float = 0.0
+    srf_rz: float = 0.0
+    srf_size: float = 80.0        # model size: longest side (mm)
+    srf_r: float = 0.86           # model colour where the image does not cover it
+    srf_g: float = 0.84
+    srf_b: float = 0.88
 
     def copy(self):
         return ModelParams(**asdict(self))
@@ -123,6 +146,13 @@ class ModelParams:
         if self.bg_mode not in ("auto", "dark", "white", "transparent", "color"):
             self.bg_mode = "auto"
         self.rot90 %= 4
+        from nimcale.core.surface import PROJECTIONS, AXES
+        if self.srf_proj not in PROJECTIONS:
+            self.srf_proj = "auto"
+        if self.srf_axis not in AXES:
+            self.srf_axis = "top"
+        if self.srf_up not in ("auto", "z", "y", "x"):
+            self.srf_up = "auto"
 
     def align_dict(self):
         return dict(fit=self.fit, sx=self.sx, sy=self.sy, ox=self.ox, oy=self.oy, rot=self.rot)
