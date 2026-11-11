@@ -3,6 +3,25 @@
 All notable changes to Nimcale are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-11-11
+
+First **stable** release of Nimcale 1.0.
+
+### Added
+- The native window title bar (title and icon) follows the operating system theme instead of always
+  being white. New setting *Settings → Appearance → Title bar*: **follow system** (default) / dark / light /
+  theme colour.
+  - Windows 10 (1809+) and 11: dark/light title bar through `DwmSetWindowAttribute`
+    (`DWMWA_USE_IMMERSIVE_DARK_MODE` 20, falling back to 19 on older Windows 10). The system choice is read
+    from `AppsUseLightTheme` and checked every 2 seconds, so switching Windows between light and dark
+    updates the open window live. On Windows 11 "theme colour" paints the caption, border and title text in
+    Nimcale's purple. Unsupported Windows versions keep the default bar silently.
+  - macOS: GLFW windows already follow the system appearance.
+  - Linux: best effort, depends on the window manager (`_GTK_THEME_VARIANT` hint via `xprop`, honoured by
+    GNOME/Mutter and other GTK-based window managers; the system preference is read from GNOME `gsettings`).
+- Translations of the new setting in all 12 languages; tests for the title bar logic; the CI smoke test
+  logs the title bar mode applied by the frozen exe (default and "theme" mode).
+
 ## [1.0.1-beta] - 2026-11-11
 
 ### Fixed

@@ -53,6 +53,9 @@ class Runner:
         self.shot_done = False
         self.drop_cb = None
         self.started = False
+        from nimcale.ui.titlebar import TitleBar
+        self.titlebar = TitleBar(lambda: self.cfg.titlebar, log=lambda m: print(m, flush=True))
+        self.app.titlebar = self.titlebar
 
     # ------------------------------------------------------------------ callbacks
     def post_init(self):
@@ -85,6 +88,7 @@ class Runner:
             glfw.set_drop_callback(win, self.drop_cb)
             if sys.platform == "win32":
                 set_windows_icons(glfw.get_win32_window(win))
+            self.titlebar.attach_glfw(win)
         except Exception as e:
             print("window setup:", e, flush=True)
         app.upload_texture()
@@ -130,6 +134,10 @@ class Runner:
         self.dialogs.drop_window()
         self.dialogs.poll_export()
         self.shell.shortcuts()
+        try:
+            self.titlebar.update()
+        except Exception:
+            pass
         app.track_changes(interacting)
         rp = hello_imgui.get_runner_params()
         busy = (app.view.turntable or (app.export_job is not None) or self.vp.dragging is not None

@@ -10,7 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cleitinhodev/nimcale/releases"><img alt="Release" src="https://img.shields.io/github/v/release/cleitinhodev/nimcale?include_prereleases&color=a855f7"></a>
+  <a href="https://github.com/cleitinhodev/nimcale/releases/latest"><img alt="Versão estável" src="https://img.shields.io/github/v/release/cleitinhodev/nimcale?label=vers%C3%A3o%20est%C3%A1vel&color=a855f7"></a>
+  <a href="https://github.com/cleitinhodev/nimcale/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/cleitinhodev/nimcale/total?color=ec4899"></a>
   <a href="https://github.com/cleitinhodev/nimcale/actions/workflows/build.yml"><img alt="Build" src="https://github.com/cleitinhodev/nimcale/actions/workflows/build.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="GPL-3.0" src="https://img.shields.io/badge/licen%C3%A7a-GPL--3.0-ec4899"></a>
   <img alt="Windows | Linux" src="https://img.shields.io/badge/Windows%20%7C%20Linux-OpenGL%203.3-7c3aed">
@@ -43,7 +44,8 @@
   triângulos), reamostragem bicúbica, progresso com cancelamento, **sólido fechado verificado** e simplificação adaptativa opcional.
 - **Projetos** `.nimcale`, arquivos recentes, **arrastar e soltar** imagens.
 - **Interface** moderna (Dear ImGui com docking): menus, barra de ferramentas, abas, inspetor, barra de status,
-  tema roxo/rosa com **neon e gradientes animados** (podem ser desligados).
+  tema roxo/rosa com **neon e gradientes animados** (podem ser desligados) e **barra de título que acompanha
+  o tema claro/escuro do sistema** (ou escura / clara / cor do tema).
 - **12 idiomas** com detecção automática: Português (Brasil), English, Español, Français, Deutsch, Italiano,
   Русский, Polski, Türkçe, 简体中文, 日本語, 한국어.
 - **Compatibilidade máxima** — OpenGL 3.3; se o driver de vídeo falhar, o Nimcale usa automaticamente o
@@ -56,7 +58,7 @@
 
 ## 📥 Download (Windows)
 
-Baixe o `Nimcale-<versão>-windows-x64.zip` em **[Releases](https://github.com/cleitinhodev/nimcale/releases)**,
+Baixe o `Nimcale-<versão>-windows-x64.zip` da **[versão estável mais recente](https://github.com/cleitinhodev/nimcale/releases/latest)**,
 extraia a pasta e execute **`Nimcale.exe`**. Não precisa instalar nada.
 
 > O executável ainda não é assinado digitalmente: se o Windows SmartScreen avisar, clique em
@@ -173,12 +175,13 @@ cut-out shapes — and exports **watertight high-definition meshes**.
 - **HD export** independent of the preview (up to 6144 samples on the longest side, millions of triangles),
   bicubic upsampling, progress + cancel, verified closed solid, optional adaptive decimation.
 - `.nimcale` projects, recent files, drag & drop.
-- Modern docking UI with an animated purple/pink neon theme (can be disabled) and **12 languages**
+- Modern docking UI with an animated purple/pink neon theme (can be disabled), a native title bar that follows
+  the OS light/dark theme (or dark / light / theme colour), and **12 languages**
   with auto-detection (pt-BR default, English fallback).
 - OpenGL 3.3 with automatic fallback to the bundled **Mesa llvmpipe** software renderer.
 
 **Download:** get `Nimcale-<version>-windows-x64.zip` from
-[Releases](https://github.com/cleitinhodev/nimcale/releases), extract and run `Nimcale.exe`.
+[the latest stable release](https://github.com/cleitinhodev/nimcale/releases/latest), extract and run `Nimcale.exe`.
 
 **From source:** `pip install -r requirements.txt` then `python -m nimcale [texture heightmap | project.nimcale]`.
 Tests: `pip install -r requirements-dev.txt && python -m pytest`.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nimcale"
-version = "1.0.1"
+version = "1.0.2"
 description = "Turn an image + height map into a 3D relief model (coins, medals, plates) and export watertight HD meshes."
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -13,7 +13,7 @@ authors = [{ name = "cleitinhodev" }]
 requires-python = ">=3.10"
 keywords = ["3d", "relief", "heightmap", "stl", "3d-printing", "coin", "imgui", "opengl"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Win32 (MS Windows)",
     "Environment :: X11 Applications",
     "Intended Audience :: End Users/Desktop",

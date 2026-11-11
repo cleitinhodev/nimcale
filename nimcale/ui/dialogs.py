@@ -299,6 +299,17 @@ class Dialogs:
             cfg.anim_speed = W.slider("animsp", tr("set.anim_speed"), cfg.anim_speed, 0.1, 3.0, 1.0, "%.1fx")
             theme.state["neon"] = cfg.neon
             theme.state["speed"] = cfg.anim_speed
+            W.label(tr("set.titlebar"))
+            tb_modes = ["system", "dark", "light", "theme"]
+            cur_tb = tb_modes.index(cfg.titlebar) if cfg.titlebar in tb_modes else 0
+            k = W.segmented("titlebar", [tr("set.tb_system"), tr("set.tb_dark"), tr("set.tb_light"),
+                                         tr("set.tb_theme")], cur_tb, tip=tr("tip.titlebar"))
+            if tb_modes[k] != cfg.titlebar:
+                cfg.titlebar = tb_modes[k]
+                cfg.save()
+                tb = getattr(app, "titlebar", None)
+                if tb is not None:
+                    tb.update(force=True)
             fs = W.slider("fsize", tr("set.font_size"), cfg.font_size, 11.0, 28.0, 16.0, "%.0f px")
             if fs != cfg.font_size:
                 cfg.font_size = fs

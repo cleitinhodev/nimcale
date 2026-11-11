@@ -52,9 +52,17 @@ if ($out.Contains("PROBE ERROR") -or -not ($out.Contains("PROBE OK") -or $out.Co
 # 3) first start exactly like a double click (automatic renderer choice, saved layout path), then a second start
 $cfg = Join-Path $Work "cfg_user"
 $r = Invoke-Nimcale "first start (auto renderer)" @("--quit-after", "90") $cfg
-Assert-CleanRun $r "first start" @("GPU probe:", "renderer:", "OpenGL:", "quit-after:")
-$r = Invoke-Nimcale "second start (saved settings + layout)" @("--quit-after", "90") $cfg
-Assert-CleanRun $r "second start" @("renderer:", "OpenGL:", "quit-after:")
+Assert-CleanRun $r "first start" @("GPU probe:", "renderer:", "OpenGL:", "title bar: mode=system", "quit-after:")
+($r.Log -split "`n") | Where-Object { $_ -like "title bar:*" } | ForEach-Object { Write-Host "TITLE BAR (default): $_" }
+# second start: saved settings/layout, and the title bar set to the purple "theme" mode
+$cfgFile = Join-Path $cfg "config.json"
+$j = Get-Content $cfgFile -Raw | ConvertFrom-Json
+$j | Add-Member -NotePropertyName titlebar -NotePropertyValue "theme" -Force
+$j | ConvertTo-Json -Depth 5 | Set-Content $cfgFile -Encoding utf8
+$r = Invoke-Nimcale "second start (saved settings + layout, theme title bar)" @("--quit-after", "90") $cfg
+Assert-CleanRun $r "second start" @("renderer:", "OpenGL:", "title bar: mode=theme", "quit-after:")
+($r.Log -split "`n") | Where-Object { $_ -like "title bar:*" } | ForEach-Object { Write-Host "TITLE BAR (theme): $_" }
+if (-not $r.Log.Contains("applied=dwm")) { Write-Host "::warning::DwmSetWindowAttribute was not applied on this runner" }
 
 # 4) forced software renderer + screenshot
 $shot = Join-Path $env:GITHUB_WORKSPACE "ci_shot.png"

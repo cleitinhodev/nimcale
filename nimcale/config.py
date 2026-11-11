@@ -14,6 +14,7 @@ class AppConfig:
     anim_bg: bool = True           # animated gradient background in the viewport
     anim_speed: float = 1.0
     font_size: float = 16.0
+    titlebar: str = "system"       # native title bar: system | dark | light | theme
     renderer: str = "auto"         # auto | gpu | software
     msaa: bool = True
     show_fps: bool = False

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Nimcale - turn an image + height map into a 3D relief model (coins, plates, medals)."""
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 APP_NAME = "Nimcale"
 APP_ID = "Nimcale"
 
