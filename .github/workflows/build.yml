@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: build-${{ github.ref }}-${{ github.event_name }}
+  group: build-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
