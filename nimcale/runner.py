@@ -35,6 +35,31 @@ def set_glfw_icons(glfw, win):
         print("window icon:", e, flush=True)
 
 
+def set_x11_class(glfw, win, name="nimcale", cls="Nimcale"):
+    """WM_CLASS = nimcale / Nimcale, so the desktop matches the window with nimcale.desktop
+    (StartupWMClass) - GLFW would otherwise use the window title, which contains the version."""
+    try:
+        import ctypes
+        import ctypes.util
+        dpy = glfw.get_x11_display()
+        xid = glfw.get_x11_window(win)
+        if not dpy or not xid:
+            return False
+
+        class XClassHint(ctypes.Structure):
+            _fields_ = [("res_name", ctypes.c_char_p), ("res_class", ctypes.c_char_p)]
+        x11 = ctypes.CDLL(ctypes.util.find_library("X11") or "libX11.so.6")
+        x11.XSetClassHint.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.POINTER(XClassHint)]
+        x11.XFlush.argtypes = [ctypes.c_void_p]
+        h = XClassHint(name.encode(), cls.encode())
+        x11.XSetClassHint(ctypes.c_void_p(dpy), ctypes.c_ulong(xid), ctypes.byref(h))
+        x11.XFlush(ctypes.c_void_p(dpy))
+        return True
+    except Exception as e:
+        print("window class:", e, flush=True)
+        return False
+
+
 def set_windows_icons(hwnd):
     """Small title-bar icon = favicon, big (taskbar / Alt+Tab) icon = main icon."""
     import ctypes
@@ -105,6 +130,7 @@ class Runner:
                 set_windows_icons(glfw.get_win32_window(win))
             else:
                 set_glfw_icons(glfw, win)
+                set_x11_class(glfw, win)
             self.titlebar.attach_glfw(win)
         except Exception as e:
             print("window setup:", e, flush=True)

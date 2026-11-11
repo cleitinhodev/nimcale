@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Nimcale
+GenericName=3D relief maker
+GenericName[pt_BR]=Criador de relevos 3D
+Comment=Turn an image and a height map into a printable 3D relief (coins, medals, plates, 3D surfaces)
+Comment[pt_BR]=Transforme uma imagem e um mapa de altura em um relevo 3D para impressão (moedas, medalhas, placas, superfícies 3D)
+Exec=Nimcale %F
+TryExec=Nimcale
+Icon=nimcale
+Terminal=false
+Categories=Graphics;3DGraphics;
+Keywords=3D;relief;heightmap;STL;coin;medal;lithophane;print;
+MimeType=image/png;image/jpeg;image/webp;image/bmp;model/stl;model/obj;model/gltf-binary;model/gltf+json;model/3mf;
+StartupNotify=true
+StartupWMClass=Nimcale
