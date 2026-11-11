@@ -33,6 +33,10 @@ def used_keys():
     for f in EXPORT_FORMATS:
         keys.update({"fmt." + f, "fmt.%s.desc" % f})
     keys.update("shape." + s for s in SHAPES)
+    from nimcale.core.cutout import SOURCES, BG_MODES
+    keys.update("outline." + s for s in SOURCES)
+    keys.update("bg." + b for b in BG_MODES)
+    keys.update({"cut.detected", "p.shape"})
     keys.update("mat." + m for m in MATERIALS)
     for b in BRUSHES:
         keys.update({"brush." + b, "brush.%s.tip" % b})
