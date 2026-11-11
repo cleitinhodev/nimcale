@@ -89,6 +89,7 @@ class NimcaleApp:
         self.ui_textures = {}
         self.icon_tex = None
         self.gl_failed = None
+        self.shape_user_set = False     # True once the user picked a shape / preset / edge setting
         # undo bookkeeping
         self._committed = None
         self._seen_key = None
@@ -122,7 +123,7 @@ class NimcaleApp:
             self.hm = images.load_heightmap(DEFAULT_HM)
         coin_defaults(self.params)
         self.shape_user_set = False
-        if a.heightmap or (a.texture and not a.project):
+        if a.heightmap and not a.project:
             self.auto_outline_for_new_image()      # images given on the command line: not the coin
         self.refit_shape(quiet=True)
         if a.project:
@@ -191,6 +192,14 @@ class NimcaleApp:
         elif self.params.cutout and self.params.shape != "auto":
             self.refit_shape(quiet=True)
         self.say(tr("msg.height_loaded", name=os.path.basename(path), w=h.orig_size[0], h=h.orig_size[1]), "ok")
+        if not getattr(self, "shape_user_set", False):
+            try:
+                from nimcale.core import cutout
+                from nimcale.core.pipeline import adjust_levels
+                bg = cutout.detect_height_background(adjust_levels(h.work, self.params), h.alpha)
+                self.say(tr("msg.auto_outline", bg=tr("bg." + bg)), "info")
+            except Exception:
+                pass
         self.check_aspect()
         self.dirty = True
         return True

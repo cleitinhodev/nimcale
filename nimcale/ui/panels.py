@@ -29,6 +29,28 @@ def ui_texture(app, key, pil_img, size=256):
     return t
 
 
+OUTLINE_OPTIONS = ("auto:auto", "auto:height", "auto:tex_alpha", "auto:tex_color") + \
+    tuple(s for s in SHAPES if s != "auto")
+
+
+def outline_preview_image(hf, sdf, long_side=256):
+    """RGBA PIL image (row 0 = top) of the plate: relief in gray, outside dimmed, outline magenta."""
+    h, w = hf.shape
+    st = max(1, int(np.ceil(max(h, w) / float(long_side))))
+    g = np.clip(hf[::-1][::st, ::st], 0.0, 1.0)
+    d = sdf[::-1][::st, ::st] if sdf is not None else np.ones_like(g)
+    inside = d > 0
+    gmax = float(g[inside].max()) if inside.any() else 1.0
+    g = g / max(1e-6, gmax)
+    rgb = np.stack([g * 0.85 + 0.1] * 3, -1)
+    rgb[~inside] = rgb[~inside] * 0.25 + np.array([0.05, 0.03, 0.08]) * 0.75
+    edge = inside & ~(np.roll(inside, 1, 0) & np.roll(inside, -1, 0) & np.roll(inside, 1, 1) & np.roll(inside, -1, 1))
+    rgb[edge] = (1.0, 0.25, 0.85)
+    a = np.full(g.shape + (1,), 1.0)
+    arr = (np.concatenate([rgb, a], -1) * 255 + 0.5).astype(np.uint8)
+    return Image.fromarray(np.ascontiguousarray(arr), "RGBA")
+
+
 def header(text, icon, default_open=True):
     imgui.push_style_color(imgui.Col_.text, theme.v4(theme.LILAC))
     flags = imgui.TreeNodeFlags_.default_open if default_open else 0
@@ -171,41 +193,131 @@ class Panels:
                                tip=tr("tip.cutout"))
             p.cutout = bool(mode)
             if p.cutout:
-                names = [tr("shape." + s) for s in SHAPES]
-                W.label(tr("p.shape"))
-                imgui.set_next_item_width(-1)
-                ch, idx = imgui.combo("##shape", SHAPES.index(p.shape), names)
-                if ch:
-                    p.shape = SHAPES[idx]
-                    if p.shape != "auto":
-                        app.refit_shape()
-                if p.shape == "auto":
-                    p.threshold = W.slider("thr2", tr("p.threshold"), p.threshold, 0.0, 0.95, D.threshold, "%.2f",
-                                           tip=tr("tip.threshold"))
-                else:
-                    if W.wide_button("%s  %s" % (fa.ICON_FA_CROSSHAIRS, tr("act.fit_shape")), "fit_shape",
-                                     tip=tr("tip.fit_shape")):
-                        app.refit_shape()
-                    if p.shape in ("circle", "hexagon", "octagon"):
-                        r = W.slider("rx", tr("p.radius"), p.shape_rx, 0.02, 0.8, 0.47, "%.2f mm", scale=mm)
-                        p.shape_rx = p.shape_ry = r
-                    else:
-                        p.shape_rx = W.slider("rx", tr("p.half_w"), p.shape_rx, 0.02, 0.8, 0.47, "%.2f mm", scale=mm)
-                        p.shape_ry = W.slider("ry", tr("p.half_h"), p.shape_ry, 0.02, 0.8, 0.47, "%.2f mm", scale=mm)
-                    if p.shape == "rounded":
-                        p.shape_round = W.slider("round", tr("p.corner"), p.shape_round, 0.0, 1.0, 0.25, "%.2f")
-                    p.shape_cx = W.slider("cx", tr("p.center_x"), p.shape_cx, -0.5, 0.5, 0.0, "%+.2f mm", scale=mm)
-                    p.shape_cy = W.slider("cy", tr("p.center_y"), p.shape_cy, -0.5, 0.5, 0.0, "%+.2f mm", scale=mm)
-                    if p.shape != "circle":
-                        p.shape_rot = W.slider("srot", tr("p.shape_rot"), p.shape_rot, -180.0, 180.0, 0.0, "%+.1f°")
+                self.outline_controls()
             p.smooth_edge = W.checkbox("smooth", tr("p.smooth_edge"), p.smooth_edge, tip=tr("tip.smooth_edge"))
         if header(tr("sec.edge"), fa.ICON_FA_RING):
+            before = (p.rim_width, p.rim_height, p.bevel)
             p.rim_width = W.slider("rim_w", tr("p.rim_width"), p.rim_width, 0.0, 0.15, 0.0, "%.2f mm", scale=mm,
                                    tip=tr("tip.rim"))
             p.rim_height = W.slider("rim_h", tr("p.rim_height"), p.rim_height, -1.0, 1.5, 0.0, "%.0f %%", scale=100.0,
                                     tip=tr("tip.rim_h"))
             p.bevel = W.slider("bevel", tr("p.bevel"), p.bevel, 0.0, 0.15, 0.0, "%.2f mm", scale=mm,
                                tip=tr("tip.bevel"))
+            if (p.rim_width, p.rim_height, p.bevel) != before:
+                app.mark_shape_choice()       # chosen by the user: kept when a new image is imported
+
+    # ------------------------------------------------------------------ outline (Shape / Recorte)
+    def outline_controls(self):
+        app, p = self.app, self.app.params
+        mm = p.size_mm
+        opts = OUTLINE_OPTIONS
+        cur = ("auto:" + p.outline_src) if p.shape == "auto" else p.shape
+        idx = opts.index(cur) if cur in opts else 0
+        W.label(tr("p.outline_src"))
+        imgui.set_next_item_width(-1)
+        ch, nidx = imgui.combo("##outline_src", idx, [tr("outline." + o[5:]) if o.startswith("auto:") else tr("shape." + o) for o in opts])
+        W.tooltip(tr("tip.outline_src"))
+        if ch and nidx != idx:
+            o = opts[nidx]
+            if o.startswith("auto:"):
+                p.shape, p.outline_src = "auto", o[5:]
+            else:
+                p.shape = o
+                app.mark_shape_choice()
+                app.refit_shape()
+        if p.shape != "auto":
+            if W.wide_button("%s  %s" % (fa.ICON_FA_CROSSHAIRS, tr("act.fit_shape")), "fit_shape",
+                             tip=tr("tip.fit_shape")):
+                app.refit_shape()
+            if p.shape in ("circle", "hexagon", "octagon"):
+                r = W.slider("rx", tr("p.radius"), p.shape_rx, 0.02, 0.8, 0.47, "%.2f mm", scale=mm)
+                p.shape_rx = p.shape_ry = r
+            else:
+                p.shape_rx = W.slider("rx", tr("p.half_w"), p.shape_rx, 0.02, 0.8, 0.47, "%.2f mm", scale=mm)
+                p.shape_ry = W.slider("ry", tr("p.half_h"), p.shape_ry, 0.02, 0.8, 0.47, "%.2f mm", scale=mm)
+            if p.shape == "rounded":
+                p.shape_round = W.slider("round", tr("p.corner"), p.shape_round, 0.0, 1.0, 0.25, "%.2f")
+            p.shape_cx = W.slider("cx", tr("p.center_x"), p.shape_cx, -0.5, 0.5, 0.0, "%+.2f mm", scale=mm)
+            p.shape_cy = W.slider("cy", tr("p.center_y"), p.shape_cy, -0.5, 0.5, 0.0, "%+.2f mm", scale=mm)
+            if p.shape != "circle":
+                p.shape_rot = W.slider("srot", tr("p.shape_rot"), p.shape_rot, -180.0, 180.0, 0.0, "%+.1f°")
+            return
+        # ---- automatic outline fine tuning
+        src = p.outline_src
+        if src in ("auto", "height", "tex_color"):
+            bg_opts = ("auto", "dark", "white", "transparent", "color") if src != "tex_color" else ("auto", "color")
+            bidx = bg_opts.index(p.bg_mode) if p.bg_mode in bg_opts else 0
+            W.label(tr("p.bg_mode"))
+            imgui.set_next_item_width(-1)
+            ch, nb = imgui.combo("##bg_mode", bidx, [tr("bg." + b) for b in bg_opts])
+            W.tooltip(tr("tip.bg_mode"))
+            if ch:
+                p.bg_mode = bg_opts[nb]
+            if p.bg_mode == "color":
+                ch, col = imgui.color_edit3("%s##bgcol" % tr("p.bg_color"), [p.bg_r, p.bg_g, p.bg_b],
+                                            imgui.ColorEditFlags_.no_inputs)
+                if ch:
+                    p.bg_r, p.bg_g, p.bg_b = (float(c) for c in col)
+                imgui.same_line()
+                if imgui.small_button("%s##pickbg" % tr("act.pick_border")):
+                    self.pick_border_color()
+                W.tooltip(tr("tip.pick_border"))
+        if src != "tex_alpha":
+            thr_label = tr("p.tolerance") if (p.bg_mode == "color" or src == "tex_color") else tr("p.threshold")
+            p.threshold = W.slider("thr2", thr_label, p.threshold, 0.0, 0.95, D.threshold, "%.2f",
+                                   tip=tr("tip.threshold"))
+        info = app.result.info if app.result is not None else {}
+        if info.get("source"):
+            W.label(tr("cut.detected", src=tr("outline." + info["source"]),
+                       bg=tr("bg." + info.get("bg", "auto")) if info.get("bg") != "border" else tr("bg.border"),
+                       pct=100.0 * info.get("coverage", 0.0)))
+        p.mask_grow = W.slider("mgrow", tr("p.mask_grow"), p.mask_grow, -40.0, 40.0, 0.0, "%+.1f px",
+                               tip=tr("tip.mask_grow"))
+        p.mask_smooth = W.slider("msmooth", tr("p.mask_smooth"), p.mask_smooth, 0.0, 20.0, 0.0, "%.1f px",
+                                 tip=tr("tip.mask_smooth"))
+        p.mask_feather = W.slider("mfeather", tr("p.mask_feather"), p.mask_feather, 0.0, 10.0, 0.0, "%.1f px",
+                                  tip=tr("tip.mask_feather"))
+        p.fill_holes = W.checkbox("mholes", tr("p.fill_holes"), p.fill_holes, tip=tr("tip.fill_holes"))
+        p.keep_largest = W.checkbox("mlargest", tr("p.keep_largest"), p.keep_largest, tip=tr("tip.keep_largest"))
+        if not p.keep_largest:
+            p.min_island = W.slider("misland", tr("p.min_island"), p.min_island, 0.0, 5.0, D.min_island, "%.2f %%",
+                                    log=False, tip=tr("tip.min_island"))
+        app.view.show_outline = W.checkbox("mprev", tr("p.outline_preview"), app.view.show_outline,
+                                           tip=tr("tip.outline_preview"))
+        if app.view.show_outline:
+            self.outline_preview()
+
+    def pick_border_color(self):
+        app, p = self.app, self.app.params
+        from nimcale.core.images import border_color
+        if p.outline_src == "tex_color" and app.tex is not None:
+            p.bg_r, p.bg_g, p.bg_b = border_color(app.tex.img)
+        elif app.hm is not None:
+            from nimcale.core.cutout import border_values
+            v = float(np.median(border_values(app.hm.work)))
+            p.bg_r = p.bg_g = p.bg_b = v
+
+    def outline_preview(self):
+        """2D live preview: plate height map, outside dimmed, outline in magenta."""
+        app = self.app
+        res = app.result
+        if res is None:
+            return
+        key = (id(res.hf), id(res.sdf))
+        t = app.ui_textures.get("cut_prev")
+        if t is None or getattr(self, "_prev_key", None) != key:
+            if t is not None:
+                t.release()
+            img = outline_preview_image(res.hf, res.sdf)
+            t = app.ctx.texture(img.size, 4, img.tobytes())
+            t.filter = (moderngl.LINEAR, moderngl.LINEAR)
+            app.ui_textures["cut_prev"] = t
+            self._prev_key = key
+        avail = imgui.get_content_region_avail().x
+        asp = t.size[1] / float(t.size[0])
+        iw = min(avail, 260.0)
+        imgui.image(imgui.ImTextureRef(t.glo), imgui.ImVec2(iw, iw * asp))
+        W.tooltip(tr("tip.outline_preview"))
 
     # ------------------------------------------------------------------ texture
     def tab_texture(self):
