@@ -61,6 +61,28 @@
 | ![Medalha](docs/screenshots/medal_gold.png) | ![Exportar](docs/screenshots/export.png) | ![Escultura](docs/screenshots/sculpt.png) |
 | ![Recorte](docs/screenshots/shape_cutout.png) | ![Sobre](docs/screenshots/about.png) | ![日本語](docs/screenshots/lang_ja.png) |
 
+## 🧪 Versão de teste (beta): Importar superfície
+
+> ⚠️ **Experimental.** A versão estável continua sendo a **1.0.3** (branch `main`). A versão de teste
+> **1.1.0-beta.1** é publicada como *pré-lançamento* a partir do branch `dev/surface` e mostra o selo
+> "VERSÃO DE TESTE" no app.
+
+A nova aba **Superfície** aplica a textura **e** o relevo atuais sobre um objeto 3D (copo, garrafa, caixa...),
+sem remover nenhuma opção existente. Ao abrir, o app continua mostrando a moeda padrão, sem superfície.
+
+- **Formatos:** OBJ (+MTL), STL, PLY, GLB/glTF, 3MF, OFF e DAE (Collada). FBX **não** é suportado.
+- **12 modelos de exemplo:** copo, caneca com alça, garrafa, vaso, bola, caixa, lata, prato, chaveiro,
+  placa tipo capinha, porta-canetas e cúpula de luminária.
+- Projeções automática, UV do modelo, cilíndrica, esférica, plana, caixa (triplanar) e decalque; ajuste,
+  posição, escala, proporção X/Y, rotação, emenda, repetir, espelhar, máscara pelo recorte da placa.
+- Relevo deslocando a superfície pelas normais com subdivisão adaptativa; exportação tudo mesclado
+  (STL, OBJ, GLB/glTF, PLY, 3MF, OFF, também em HD), fechado se o modelo original for fechado.
+- **Remover superfície / voltar à placa padrão** com um clique (desfazível), mantendo todos os ajustes.
+
+| Caneca | Caixa (repetir) |
+|---|---|
+| ![Caneca](docs/screenshots/surface_mug.png) | ![Caixa](docs/screenshots/surface_box.png) |
+
 ## 📥 Download (Windows)
 
 Baixe o `Nimcale-<versão>-windows-x64.zip` da **[versão estável mais recente](https://github.com/cleitinhodev/nimcale/releases/latest)**,
@@ -186,6 +208,12 @@ cut-out shapes — and exports **watertight high-definition meshes**.
   the OS light/dark theme (or dark / light / theme colour), and **12 languages**
   with auto-detection (pt-BR default, English fallback).
 - OpenGL 3.3 with automatic fallback to the bundled **Mesa llvmpipe** software renderer.
+
+**Test version (beta) - Import surface:** the pre-release **1.1.0-beta.1** (branch `dev/surface`, marked
+as a test build; stable stays **1.0.3**) adds a *Surface* tab that puts the texture and relief onto a 3D
+model (OBJ+MTL, STL, PLY, GLB/glTF, 3MF, OFF, DAE; no FBX) with automatic / UV / cylindrical / spherical /
+planar / box / decal projection, placement controls, displacement along normals, 12 sample models, merged
+watertight export (also HD) and a one-click *Remove surface* that returns to the normal plate.
 
 **Download:** get `Nimcale-<version>-windows-x64.zip` from
 [the latest stable release](https://github.com/cleitinhodev/nimcale/releases/latest), extract and run `Nimcale.exe`.

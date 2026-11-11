@@ -3,6 +3,36 @@
 All notable changes to Nimcale are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.0-beta.1] - 2026-11-11 (test pre-release, branch `dev/surface`)
+
+**Experimental test build** published as a GitHub *pre-release* from the `dev/surface` branch. The stable
+version is still **1.0.3** (`main`). The app shows a "TEST VERSION" badge in the status bar and window title.
+
+### Added
+- **Surface (3D model) layer** - new *Surface* tab: put the current texture **and** relief onto a 3D object
+  (cup, bottle, box...). Nothing was removed: without a surface the app is exactly the normal plate / coin.
+  - Import **OBJ (+MTL), STL, PLY, GLB / glTF, 3MF, OFF and DAE (Collada)** (menu *File - Import surface*,
+    `Ctrl+Shift+U`, toolbar or drag & drop). Several parts are merged, metres are converted to mm, missing
+    normals are computed, large meshes (> 2 M triangles) are simplified. FBX is **not** supported.
+  - **12 sample models** (cup, mug with handle, bottle, vase, ball, box, can, plate, keychain tag, phone-case
+    slab, pen holder, lamp shade) generated procedurally (`scripts/make_samples.py`), all closed solids.
+  - Projections: automatic (detects cylinder / sphere / flat / box), model UVs, cylindrical, spherical,
+    planar, box (triplanar) and decal (one side only), with projection axis / direction.
+  - Image fit (cover the whole side, go around once, object height), move U/V, scale, separate X/Y
+    proportion, rotation, seam position, repeat (tile) or single image, mirror, use the plate outline as a
+    mask, outer wall only / also top and bottom (cylinders).
+  - Relief displaces the surface along its normals with conforming adaptive subdivision (detail slider);
+    uses the existing depth, invert and smoothing settings. Live preview with the texture colours.
+  - Model: up axis, size (mm), rotation X/Y/Z, base colour.
+  - **Export everything merged** in the existing formats (STL, OBJ+MTL+texture, GLB/glTF, PLY, 3MF, OFF),
+    including **HD** export (up to 4 M triangles). Closed input models stay closed (watertight).
+  - **Remove surface / back to the default plate** (button + File menu, undoable): only the 3D model goes
+    away, every plate / coin setting is kept. Surfaces are saved in `.nimcale` projects.
+- New help/guide entries, shortcuts, translations for all 12 languages.
+
+### Dependencies
+- trimesh, networkx, lxml, pycollada (and python-dateutil / tzdata) are now runtime dependencies.
+
 ## [1.0.3] - 2026-11-11
 
 Stable. Includes everything from 1.0.2 (title bar follows the OS theme) plus:

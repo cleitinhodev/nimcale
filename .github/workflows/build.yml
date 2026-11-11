@@ -82,12 +82,12 @@ jobs:
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
             $notes = ".github/release-notes/$tag.md"
-            $pre = if ($tag -match "-") { "--prerelease" } else { "" }
+            $pre = if ($tag -match "-") { @("--prerelease", "--latest=false") } else { @() }
             if (Test-Path $notes) {
               $title = (Get-Content $notes -TotalCount 1).TrimStart("# ").Trim()
-              gh release create $tag $pre --title "$title" --notes-file $notes
+              gh release create $tag @pre --title "$title" --notes-file $notes
             } else {
-              gh release create $tag $pre --title "Nimcale $tag" --generate-notes
+              gh release create $tag @pre --title "Nimcale $tag" --generate-notes
             }
           }
           gh release upload $tag "${{ steps.pkg.outputs.zip }}" --clobber
