@@ -313,7 +313,31 @@ def selftest():
     path = os.path.join(tempfile.gettempdir(), "nimcale_selftest.stl")
     formats.write_stl(path, m.scaled(p.size_mm))
     print("selftest: %d triangles, watertight=%s, %.1fs -> %s" % (len(m.F), closed, time.time() - t0, path))
-    return 0 if closed["watertight"] else 1
+    ok = closed["watertight"]
+    # surface layer (test build): bundled samples + every import format through the frozen trimesh/collada
+    try:
+        import trimesh
+        from nimcale.app import sample_path
+        from nimcale.core import surface as S
+        t1 = time.time()
+        sm = S.load_surface(sample_path("mug"))
+        tm = trimesh.Trimesh(sm.V, sm.F, process=False)
+        fmts = []
+        for ext in (".obj", ".stl", ".ply", ".glb", ".gltf", ".3mf", ".off", ".dae"):
+            fp = os.path.join(tempfile.gettempdir(), "nimcale_selftest_srf" + ext)
+            tm.export(fp)
+            fmts.append("%s:%d" % (ext[1:], S.load_surface(fp).n_faces))
+        sr = S.SurfaceBuilder().build(sm, p, res, max_faces=60_000)
+        from PIL import Image
+        welded, _split, _atlas = S.export_meshes(sr, Image.new("RGB", (8, 8)), (0.8, 0.8, 0.8))
+        sc = meshmod.check_closed(welded.F)
+        ok = ok and sc["watertight"]
+        print("selftest surface: %s | %d triangles, watertight=%s, %.1fs"
+              % (" ".join(fmts), len(welded.F), sc["watertight"], time.time() - t1))
+    except Exception as e:  # noqa: BLE001
+        print("selftest surface FAILED:", repr(e))
+        ok = False
+    return 0 if ok else 1
 
 
 # ---------------------------------------------------------------------------- main

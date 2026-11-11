@@ -72,7 +72,7 @@ if (-not (Test-Path $shot)) { $failed += "no screenshot" }
 
 # 5) non-GUI self test (mesh + STL)
 $r = Invoke-Nimcale "selftest" @("--selftest") (Join-Path $Work "cfg_self")
-Assert-CleanRun $r "selftest" @("'watertight': True")
+Assert-CleanRun $r "selftest" @("'watertight': True", "selftest surface: obj:", "dae:", "watertight=True")
 
 if ($failed.Count) { Write-Host "`nSMOKE TEST FAILURES:"; $failed | ForEach-Object { Write-Host " - $_" }; exit 1 }
 Write-Host "`nAll smoke tests passed."
