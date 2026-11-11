@@ -11,8 +11,22 @@ MERGE = ["fonts/NimcaleCJK-SC.otf", "fonts/NimcaleCJK-JP.otf", "fonts/NimcaleCJK
 ICONS = "fonts/fa-solid-900.otf"
 
 
+def _merge_order():
+    """Han characters exist in all three CJK fonts with different regional shapes; merge the font of
+    the current language first so it wins (ImGui keeps the first glyph found)."""
+    try:
+        from nimcale import i18n
+        cur = i18n.current()
+    except Exception:
+        cur = ""
+    first = {"ja": "fonts/NimcaleCJK-JP.otf", "ko": "fonts/NimcaleCJK-KR.otf"}.get(cur)
+    if not first:
+        return list(MERGE)
+    return [first] + [m for m in MERGE if m != first]
+
+
 def _merge(size):
-    for f in MERGE + [ICONS]:
+    for f in _merge_order() + [ICONS]:
         if not os.path.isfile(asset(f)):
             continue
         p = hello_imgui.FontLoadingParams()
