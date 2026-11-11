@@ -3,6 +3,31 @@
 All notable changes to Nimcale are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.1-beta] - 2026-11-11
+
+### Fixed
+- **Windows: crash at start-up** of 1.0.0-beta (`AttributeError: DockingLayoutCondition ...
+  first_use_since_app_start`). The docking layout used an enum name that does not exist in hello_imgui;
+  the screenshot-based tests used a different branch and never ran that line. Enum names and optional
+  RunnerParams fields are now resolved with version-tolerant fallbacks (`nimcale/compat.py`).
+- **Windows: GPU probe always failed** ("Failed to load GLFW3 shared library"), so every PC was sent to the
+  slow software renderer. The probe now uses the same GLFW DLL as the window (imgui-bundle's, found
+  through `PYGLFW_LIBRARY`), pyGLFW's own DLLs are bundled too, and a probe that cannot run is treated as
+  inconclusive: the graphics card is still tried. Only a real OpenGL failure (no 3.3 context, or the
+  driver crashing the probe) selects the Mesa software renderer.
+- A program error during start-up is no longer mistaken for an OpenGL problem (no wrong "use the software
+  renderer?" question, and the GPU is not marked as failed).
+
+### Changed
+- Dependencies are pinned to the exact versions tested (`requirements*.txt`, `pyproject.toml`).
+- CI smoke tests now run the frozen exe through the real start-up path (as a double click: automatic
+  renderer choice with the GPU probe, first and second start with saved settings/layout), plus the GL probe
+  with and without Mesa, the forced software renderer with a screenshot, and the self test. Each run fails
+  on a non-zero exit code, a traceback or an error line in `nimcale.log` (`scripts/ci_smoke.ps1`).
+- New tests: start-up/renderer selection, building the real RunnerParams for every start mode, and a static
+  audit of every imgui-bundle / hello_imgui / GLFW name used in the code.
+- New option `--quit-after N` (quit after N frames) and `NIMCALE_NO_DIALOGS=1` for automated runs.
+
 ## [1.0.0-beta] - 2026-11-11
 
 First public release. Nimcale is the complete rewrite of the old "placa3d" relief viewer.

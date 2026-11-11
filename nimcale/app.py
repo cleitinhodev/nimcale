@@ -104,6 +104,8 @@ class NimcaleApp:
     # ======================================================================== messages
     def say(self, msg, kind="info"):
         self.status = (msg, time.time(), kind)
+        if kind == "error":
+            self.error_count = getattr(self, "error_count", 0) + 1
         print("[%s] %s" % (kind, msg), flush=True)
 
     # ======================================================================== loading

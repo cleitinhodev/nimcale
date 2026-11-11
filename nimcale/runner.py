@@ -8,6 +8,7 @@ import moderngl
 from imgui_bundle import imgui, hello_imgui
 
 from nimcale import APP_NAME, __version__, paths
+from nimcale.compat import enum_value, set_opt
 from nimcale.app import NimcaleApp
 from nimcale.i18n import tr
 from nimcale import i18n
@@ -202,6 +203,10 @@ class Runner:
             self.demo_sculpt()
         if a.shot and self.frame == a.frames:
             self.want_shot = True
+        if a.quit_after and self.frame >= a.quit_after:
+            # smoke test: the normal start-up path ran for N frames, now quit cleanly
+            print("quit-after: %d frames rendered" % self.frame, flush=True)
+            hello_imgui.get_runner_params().app_shall_exit = True
 
     def demo_sculpt(self):
         """Paint a few strokes programmatically (used by tests/screenshots)."""
@@ -244,20 +249,20 @@ class Runner:
         rp.app_window_params.window_title = "%s %s" % (APP_NAME, __version__)
         w, h = self.args.size
         rp.app_window_params.window_geometry.size = (w, h)
-        rp.app_window_params.restore_previous_geometry = not self.args.shot
+        set_opt(rp.app_window_params, "restore_previous_geometry", not self.args.shot)
         rp.ini_folder_type = hello_imgui.IniFolderType.absolute_path
         rp.ini_filename = os.path.join(paths.config_dir(), "layout.ini")
         if self.args.shot or self.args.reset_layout:
-            rp.ini_clear_previous_settings = True
+            set_opt(rp, "ini_clear_previous_settings", True)
         iw = rp.imgui_window_params
         iw.default_imgui_window_type = hello_imgui.DefaultImGuiWindowType.provide_full_screen_dock_space
         iw.show_menu_bar = True
-        iw.show_menu_app = False
-        iw.show_menu_view = False
+        set_opt(iw, "show_menu_app", False)
+        set_opt(iw, "show_menu_view", False)
         iw.show_status_bar = True
-        iw.show_status_fps = False
-        iw.remember_theme = False
-        iw.config_windows_move_from_title_bar_only = True
+        set_opt(iw, "show_status_fps", False)
+        set_opt(iw, "remember_theme", False)
+        set_opt(iw, "config_windows_move_from_title_bar_only", True)
         iw.background_color = imgui.ImVec4(0.05, 0.03, 0.07, 1.0)
         cb = rp.callbacks
         cb.post_init = self.post_init
@@ -296,13 +301,19 @@ class Runner:
         iw_.gui_function = self.panels.inspector
         iw_.can_be_closed = True
         d.dockable_windows = [vw, pw, iw_]
-        d.layout_condition = hello_imgui.DockingLayoutCondition.application_start if self.args.shot else \
-            hello_imgui.DockingLayoutCondition.first_use_since_app_start
+        # The saved layout (layout.ini) is reused; screenshots / --reset-layout rebuild it on every start.
+        cond = hello_imgui.DockingLayoutCondition
+        if self.args.shot or self.args.reset_layout:
+            d.layout_condition = enum_value(cond, "application_start", "ApplicationStart")
+        else:
+            d.layout_condition = enum_value(cond, "first_use_ever", "FirstUseEver", "application_start")
         rp.fps_idling.enable_idling = not bool(self.args.shot)
         rp.fps_idling.fps_idle = 30.0
         return rp
 
     def run(self):
+        self.stage = "setup"          # errors here are program errors, not OpenGL problems
         hello_imgui.set_assets_folder(paths.assets_dir())
         rp = self.params()
+        self.stage = "run"            # window / OpenGL creation happens inside hello_imgui.run
         hello_imgui.run(rp)

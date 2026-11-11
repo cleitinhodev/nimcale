@@ -31,6 +31,7 @@ def parse_args(argv=None):
     ap.add_argument("--props-tab", default=None, help="properties tab to select (model, shape, texture, sculpt, scene)")
     ap.add_argument("--do", default="", help=argparse.SUPPRESS)   # comma separated actions (tests)
     ap.add_argument("--do-at", type=int, default=3, help=argparse.SUPPRESS)
+    ap.add_argument("--quit-after", type=int, default=0, help="quit after N frames (smoke test)")
     ap.add_argument("--demo-sculpt", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--reset-layout", action="store_true", help="forget the saved window layout")
     ap.add_argument("--selftest", action="store_true", help="run a quick non-GUI self test and exit")
@@ -63,6 +64,9 @@ def setup_logging():
 
 
 def message_box(title, text, yes_no=False):
+    print("%s: %s" % (title, text), file=sys.stderr, flush=True)
+    if os.environ.get("NIMCALE_NO_DIALOGS"):      # automated runs (CI smoke tests) must never block
+        return False
     if sys.platform == "win32":
         try:
             import ctypes
@@ -71,7 +75,6 @@ def message_box(title, text, yes_no=False):
             return r == 6
         except Exception:
             pass
-    print("%s: %s" % (title, text), file=sys.stderr)
     return False
 
 
@@ -89,6 +92,42 @@ def mesa_dir():
         if os.path.isfile(os.path.join(c, "opengl32.dll")):
             return c
     return None
+
+
+def glfw_library():
+    """Path of the GLFW shared library to use with pyGLFW.
+
+    imgui-bundle ships its own GLFW (the one the real window uses); pyGLFW must load that same file.
+    In the frozen exe pyGLFW cannot find its bundled DLL by itself, which made the GPU probe fail."""
+    names = {"win32": ["glfw3.dll"], "darwin": ["libglfw.3.dylib"]}.get(sys.platform, ["libglfw.so.3", "libglfw.so"])
+    dirs = []
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        dirs += [os.path.join(meipass, "imgui_bundle"), os.path.join(meipass, "glfw"), meipass]
+    try:
+        import importlib.util
+        for mod in ("imgui_bundle", "glfw"):
+            spec = importlib.util.find_spec(mod)
+            if spec and spec.origin:
+                dirs.append(os.path.dirname(spec.origin))
+    except Exception:
+        pass
+    dirs.append(os.path.dirname(os.path.abspath(sys.executable)))
+    for d in dirs:
+        for n in names:
+            p = os.path.join(d, n)
+            if os.path.isfile(p):
+                return p
+    return None
+
+
+def setup_glfw_library():
+    if os.environ.get("PYGLFW_LIBRARY") and os.path.isfile(os.environ["PYGLFW_LIBRARY"]):
+        return os.environ["PYGLFW_LIBRARY"]
+    p = glfw_library()
+    if p:
+        os.environ["PYGLFW_LIBRARY"] = p
+    return p
 
 
 def enable_software_gl():
@@ -120,9 +159,14 @@ def enable_software_gl():
 
 
 def probe_gl(out_path=None):
-    """Child-process check: can we get an OpenGL 3.3 core context? Prints the renderer.
+    """Child-process check: can we get an OpenGL 3.3 core context? Prints one result line:
 
-    The windowed exe has no stdout, so the result is (also) written to ``out_path``."""
+    * ``PROBE OK <renderer> <version>``  - hardware/driver OpenGL works
+    * ``PROBE FAIL <reason>``            - the driver cannot give a usable OpenGL 3.3 context
+    * ``PROBE ERROR <reason>``           - the probe itself could not run (missing DLL, import error...);
+                                           says nothing about the GPU, so it must not force software mode
+
+    The windowed exe has no stdout, so the result is written to ``out_path``."""
     if out_path:
         try:
             sys.stdout = open(out_path, "w", encoding="utf-8", buffering=1)
@@ -130,11 +174,23 @@ def probe_gl(out_path=None):
             pass
     elif sys.stdout is None:
         sys.stdout = open(os.devnull, "w")
+    lib = setup_glfw_library()
     try:
         import glfw
+        if getattr(glfw, "_glfw", True) is None:
+            raise OSError("GLFW library not found (%s)" % lib)
+        import moderngl
+    except Exception as e:
+        print("PROBE ERROR", e, flush=True)
+        return 6
+    try:
         if not glfw.init():
-            print("PROBE FAIL glfw.init")
+            print("PROBE ERROR glfw.init", flush=True)
             return 2
+    except Exception as e:
+        print("PROBE ERROR glfw.init", e, flush=True)
+        return 2
+    try:
         glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
@@ -142,21 +198,21 @@ def probe_gl(out_path=None):
         glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, glfw.TRUE)
         win = glfw.create_window(64, 64, "probe", None, None)
         if not win:
-            print("PROBE FAIL window")
+            print("PROBE FAIL no OpenGL 3.3 core context", flush=True)
             return 3
         glfw.make_context_current(win)
-        import moderngl
         ctx = moderngl.create_context(require=330)
         fbo = ctx.simple_framebuffer((8, 8))
         fbo.use()
         ctx.clear(1, 0, 1, 1)
         px = fbo.read(components=3)
         ok = px[:3] == b"\xff\x00\xff"
-        print("PROBE OK" if ok else "PROBE FAIL read", ctx.info["GL_RENDERER"], ctx.info["GL_VERSION"])
+        print("PROBE OK" if ok else "PROBE FAIL read-back", ctx.info["GL_RENDERER"], ctx.info["GL_VERSION"],
+              flush=True)
         glfw.terminate()
         return 0 if ok else 4
     except Exception as e:
-        print("PROBE FAIL", e)
+        print("PROBE FAIL", e, flush=True)
         return 5
 
 
@@ -182,9 +238,19 @@ def run_probe(software=False, timeout=25):
                 out = f.read()
         except OSError:
             out = ""
-        return r.returncode == 0 and "PROBE OK" in out, out.strip()[-400:]
+        out = out.strip()
+        if r.returncode == 0 and "PROBE OK" in out:
+            return "ok", out[-400:]
+        if "PROBE ERROR" in out:
+            return "error", out[-400:]
+        if "PROBE FAIL" in out:
+            return "fail", out[-400:]
+        # no result line at all: the driver crashed the probe process (typical of broken drivers)
+        return "crash", ("exit code %s %s" % (r.returncode, out))[-400:]
+    except subprocess.TimeoutExpired:
+        return "error", "timeout"
     except Exception as e:
-        return False, str(e)
+        return "error", str(e)
     finally:
         try:
             os.remove(out_path)
@@ -206,12 +272,16 @@ def choose_renderer(a, cfg):
     crashed = os.path.exists(lock)
     if crashed or cfg.gl_status not in ("ok",):
         if sys.platform == "win32" or os.environ.get("NIMCALE_FORCE_PROBE"):
-            ok, out = run_probe(False)
-            print("GPU probe:", "ok" if ok else "failed", out, flush=True)
-            if not ok:
+            res, out = run_probe(False)
+            print("GPU probe:", res, out, flush=True)
+            if res in ("fail", "crash"):
                 cfg.gl_status = "gpu-failed"
                 cfg.save()
                 return True
+            if res == "error":
+                # the probe could not run: try the GPU anyway (the start-up crash marker and the
+                # OpenGL error dialog still offer the software renderer if it really fails)
+                print("GPU probe inconclusive: trying the graphics driver", flush=True)
         if crashed and cfg.gl_status == "ok":
             # GPU probe is fine but last start crashed anyway: be safe this time
             print("previous start crashed: using software renderer", flush=True)
@@ -253,6 +323,7 @@ def main(argv=None):
         return probe_gl(a.probe_out)
     log = setup_logging()
     print("%s %s | Python %s | %s" % (APP_NAME, __version__, sys.version.split()[0], sys.platform), flush=True)
+    print("GLFW library:", setup_glfw_library(), flush=True)
     if a.selftest:
         return selftest()
     from nimcale.config import AppConfig
@@ -260,7 +331,9 @@ def main(argv=None):
     software = choose_renderer(a, cfg)
     if software:
         ok = enable_software_gl()
-        print("software OpenGL:", "enabled" if ok else "NOT AVAILABLE", flush=True)
+        print("renderer: software (Mesa)", "enabled" if ok else "NOT AVAILABLE", flush=True)
+    else:
+        print("renderer: graphics driver (GPU)", flush=True)
     from nimcale import i18n
     i18n.set_language(a.lang or cfg.language)
     lock = os.path.join(paths.config_dir(), LOCK_NAME)
@@ -274,10 +347,16 @@ def main(argv=None):
         r = Runner(a, cfg)
         r.software = software
         r.run()
+        if not r.started:
+            raise RuntimeError("the window closed before OpenGL 3.3 started")
         try:
             os.remove(lock)
         except OSError:
             pass
+        errors = getattr(r.app, "error_count", 0)
+        if a.quit_after and errors:
+            print("ERROR: %d error message(s) during the smoke run" % errors, flush=True)
+            return 4
         return 0
     except Exception as e:
         traceback.print_exc()
@@ -286,12 +365,12 @@ def main(argv=None):
         except OSError:
             pass
         from nimcale.i18n import tr
-        started = False
+        started, stage = False, "setup"
         try:
-            started = r.started
+            started, stage = r.started, getattr(r, "stage", "setup")
         except Exception:
             pass
-        if not started and not software:
+        if not started and not software and stage == "run":
             cfg.gl_status = "gpu-failed"
             cfg.save()
             if message_box(APP_NAME, tr("err.gl_retry", err=str(e)), yes_no=True):

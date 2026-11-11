@@ -1,8 +1,10 @@
-# Nimcale runtime dependencies (Python 3.10 - 3.13)
+# Nimcale runtime dependencies - exact versions tested by CI (Windows, Python 3.12) and locally (Linux).
+# imgui-bundle changes its API between releases: update it only together with the tests.
 imgui-bundle==1.93.0
-moderngl>=5.10,<6
-numpy>=1.24
-Pillow>=10.0
-scipy>=1.10
-fast-simplification>=0.1.7
-glfw>=2.6
+moderngl==5.13.0
+glcontext==3.1.0
+numpy==2.5.4
+Pillow==13.0.0
+scipy==1.18.1
+fast-simplification==0.2.0
+glfw==2.11.0

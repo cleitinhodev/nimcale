@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nimcale"
-version = "1.0.0"
+version = "1.0.1"
 description = "Turn an image + height map into a 3D relief model (coins, medals, plates) and export watertight HD meshes."
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -24,12 +24,13 @@ classifiers = [
 ]
 dependencies = [
     "imgui-bundle==1.93.0",
-    "moderngl>=5.10,<6",
-    "numpy>=1.24",
-    "Pillow>=10.0",
-    "scipy>=1.10",
-    "fast-simplification>=0.1.7",
-    "glfw>=2.6",
+    "moderngl==5.13.0",
+    "glcontext==3.1.0",
+    "numpy==2.5.4",
+    "Pillow==13.0.0",
+    "scipy==1.18.1",
+    "fast-simplification==0.2.0",
+    "glfw==2.11.0",
 ]
 
 [project.optional-dependencies]

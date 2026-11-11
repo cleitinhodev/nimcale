@@ -14,11 +14,18 @@ datas = [
     (os.path.join(ROOT, "LICENSE"), "."),
     (os.path.join(ROOT, "THIRD_PARTY_NOTICES.md"), "."),
 ]
+from PyInstaller.utils.hooks import collect_dynamic_libs
+
 binaries = []
-for name in ("glfw3.dll",):
+# imgui-bundle's own GLFW (used by the window) - pyGLFW is pointed at this same file at run time
+for name in ("glfw3.dll", "libglfw.so.3", "libglfw.3.dylib"):
     p = os.path.join(IB, name)
     if os.path.exists(p):
         binaries.append((p, "imgui_bundle"))
+# pyGLFW's bundled DLLs (glfw/glfw3.dll, msvcr120.dll): loaded with ctypes, so PyInstaller misses them
+binaries += collect_dynamic_libs("glfw", destdir="glfw")
+if not any(os.path.basename(b[0]).lower().startswith(("glfw3", "libglfw")) for b in binaries):
+    raise SystemExit("nimcale.spec: no GLFW shared library found - the GPU probe would fail")
 
 # Mesa llvmpipe software OpenGL (optional). Kept in its own "mesa" folder so the real GPU driver
 # is used by default; Nimcale loads it only in software mode.
