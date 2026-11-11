@@ -1,0 +1,8 @@
+-r requirements.txt
+pytest>=8
+trimesh>=4
+networkx>=3
+lxml>=5
+pyinstaller>=6.10
+# only to rebuild the font subsets (scripts/build_fonts.py)
+fonttools>=4.50

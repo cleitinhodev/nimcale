@@ -10,3 +10,5 @@ dist/
 venv/
 *.log
 /out/
+.venv-build/
+ci_config/
