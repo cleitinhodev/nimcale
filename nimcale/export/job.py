@@ -83,7 +83,7 @@ class ExportJob:
             return self._run_image()
         self._set(0.01, "heightmap")
         if o.hd:
-            res = Pipeline().compute_hd(hm, p, o.hd_nodes, d.get("sculpt"), o.interp)
+            res = Pipeline().compute_hd(hm, p, o.hd_nodes, d.get("sculpt"), o.interp, tex=d.get("tex"))
             cells = None
         else:
             res = d["preview_result"]
@@ -124,7 +124,7 @@ class ExportJob:
         p = d["params"]
         self._set(0.05, "heightmap")
         if o.hd:
-            res = Pipeline().compute_hd(d["hm"], p, o.hd_nodes, d.get("sculpt"), o.interp)
+            res = Pipeline().compute_hd(d["hm"], p, o.hd_nodes, d.get("sculpt"), o.interp, tex=d.get("tex"))
         else:
             res = d["preview_result"]
         self._set(0.6, "write")

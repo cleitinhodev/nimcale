@@ -88,7 +88,7 @@ def shape_sdf(p, X, Y, size):
     return d.astype(np.float32)
 
 
-def mask_sdf(mask, size):
+def mask_sdf(mask, size, soft=0.8):
     """SDF (plate units) of a boolean plate-convention mask, via Euclidean distance transform."""
     h, w = mask.shape
     px = max(size[0] / max(1, w - 1), size[1] / max(1, h - 1))
@@ -100,7 +100,7 @@ def mask_sdf(mask, size):
     din = ndi.distance_transform_edt(mask)
     dout = ndi.distance_transform_edt(~mask)
     d = np.where(mask, din - 0.5, -(dout - 0.5)).astype(np.float32) * px
-    return ndi.gaussian_filter(d, 0.8)
+    return ndi.gaussian_filter(d, max(0.3, float(soft)))
 
 
 def clean_object_mask(m, close_px=2, min_frac=0.0005):

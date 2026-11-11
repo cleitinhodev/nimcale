@@ -155,6 +155,7 @@ class Shell:
         app = self.app
         p = app.params
         app.commit_now()
+        app.mark_shape_choice()
         mm = p.size_mm
         if name == "coin":
             p.cutout, p.shape = True, "circle"

@@ -51,6 +51,18 @@ class ModelParams:
     shape_round: float = 0.25     # corner radius (rounded rectangle), fraction of the smaller half side
     shape_rot: float = 0.0        # degrees
     smooth_edge: bool = True
+    # --- automatic outline (shape == "auto"), see core/cutout.py
+    outline_src: str = "auto"     # auto | height | tex_alpha | tex_color
+    bg_mode: str = "auto"         # auto | dark | white | transparent | color
+    bg_r: float = 1.0             # picked background colour (bg_mode == "color")
+    bg_g: float = 1.0
+    bg_b: float = 1.0
+    mask_smooth: float = 0.0      # smoothing of the outline mask (original px)
+    mask_feather: float = 0.0     # extra softness of the outline edge (original px)
+    mask_grow: float = 0.0        # grow (+) / shrink (-) the outline (original px)
+    fill_holes: bool = True
+    min_island: float = 0.05      # remove separate pieces smaller than this % of the image
+    keep_largest: bool = False
     # --- coin edge
     rim_width: float = 0.0
     rim_height: float = 0.0
@@ -106,6 +118,10 @@ class ModelParams:
                 setattr(self, f.name, v)
         if self.shape not in SHAPES:
             self.shape = "auto"
+        if self.outline_src not in ("auto", "height", "tex_alpha", "tex_color"):
+            self.outline_src = "auto"
+        if self.bg_mode not in ("auto", "dark", "white", "transparent", "color"):
+            self.bg_mode = "auto"
         self.rot90 %= 4
 
     def align_dict(self):
@@ -122,6 +138,7 @@ class ViewParams:
     mix: float = 0.5
     material: str = "silver"
     lit: bool = True
+    show_outline: bool = True     # outline overlay in the Shape tab preview
     wire: bool = False
     axes: bool = False
     grid: bool = False

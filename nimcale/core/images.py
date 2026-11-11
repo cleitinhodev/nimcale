@@ -77,6 +77,13 @@ def texture_from_pil(img, path=""):
     return TextureImage(img, img.size, path)
 
 
+def _alpha_of(im):
+    if im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info):
+        a = np.asarray(im.convert("RGBA"))[..., 3].astype(np.float32) / 255.0
+        return a if a.min() < 0.99 else None
+    return None
+
+
 def _to_float(im):
     mode = im.mode
     if mode in ("I;16", "I;16L", "I;16B", "I;16N"):
@@ -105,17 +112,22 @@ def _to_float(im):
 class HeightImage:
     """Height map: full resolution (for HD export) + working resolution (interactive)."""
 
-    def __init__(self, full, orig_size, path=""):
+    def __init__(self, full, orig_size, path="", alpha=None):
         self.full = np.ascontiguousarray(np.clip(full, 0.0, 1.0), dtype=np.float32)
         self.orig_size = orig_size
         self.path = path
+        # transparency of the file (None when opaque): used by the automatic outline
+        self.alpha_full = None if alpha is None else np.ascontiguousarray(np.clip(alpha, 0, 1), dtype=np.float32)
         h, w = self.full.shape
         m = max(w, h)
         if m > MAX_WORK:
             k = MAX_WORK / float(m)
-            self.work = resize_field(self.full, (max(8, int(round(w * k))), max(8, int(round(h * k)))), "box")
+            size = (max(8, int(round(w * k))), max(8, int(round(h * k))))
+            self.work = resize_field(self.full, size, "box")
+            self.alpha = None if alpha is None else resize_field(self.alpha_full, size, "box")
         else:
             self.work = self.full
+            self.alpha = self.alpha_full
 
     @property
     def shape(self):
@@ -126,12 +138,16 @@ def load_heightmap(path):
     im = _open(path)
     orig = im.size
     a = _to_float(im)
+    alpha = _alpha_of(im)
     h, w = a.shape
     m = max(w, h)
     if m > MAX_FULL:
         k = MAX_FULL / float(m)
-        a = resize_field(a, (max(8, int(round(w * k))), max(8, int(round(h * k)))), "box")
-    return HeightImage(a, orig, path)
+        size = (max(8, int(round(w * k))), max(8, int(round(h * k))))
+        a = resize_field(a, size, "box")
+        if alpha is not None:
+            alpha = resize_field(alpha, size, "box")
+    return HeightImage(a, orig, path, alpha)
 
 
 _RESAMPLE = {"nearest": Image.NEAREST, "bilinear": Image.BILINEAR, "bicubic": Image.BICUBIC,

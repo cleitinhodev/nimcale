@@ -121,10 +121,29 @@ class NimcaleApp:
             self.tex = images.load_texture(DEFAULT_TEX)
             self.hm = images.load_heightmap(DEFAULT_HM)
         coin_defaults(self.params)
+        self.shape_user_set = False
+        if a.heightmap or (a.texture and not a.project):
+            self.auto_outline_for_new_image()      # images given on the command line: not the coin
         self.refit_shape(quiet=True)
         if a.project:
             self.open_project(a.project)
         self._committed = self.snapshot()
+
+    def auto_outline_for_new_image(self):
+        """A new image is not the default coin: follow the object's own outline (detected background)
+        and drop the coin-only edge settings - unless the user picked a shape / preset explicitly."""
+        p = self.params
+        p.cutout = True
+        p.shape = "auto"
+        p.outline_src, p.bg_mode = "auto", "auto"
+        p.rim_width = p.rim_height = p.bevel = 0.0
+        p.mask_grow = p.mask_feather = 0.0
+        p.keep_largest = False
+        p.fill_holes = True
+
+    def mark_shape_choice(self):
+        """Called when the user explicitly chooses an outline, preset or edge setting."""
+        self.shape_user_set = True
 
     def refit_shape(self, quiet=False, shape=None):
         p = self.params
@@ -132,7 +151,7 @@ class NimcaleApp:
             p.shape = shape
         if p.shape == "auto":
             return
-        cx, cy, rx, ry = fit_shape_params(self.hm, p, p.shape)
+        cx, cy, rx, ry = fit_shape_params(self.hm, p, p.shape, tex=self.tex)
         if p.shape == "circle":
             rx = ry = rx * 0.995
         p.shape_cx, p.shape_cy, p.shape_rx, p.shape_ry = cx, cy, rx, ry
@@ -167,7 +186,9 @@ class NimcaleApp:
         self.sculptor.reset()
         self.params.reset_align()
         self.cfg.last_dir = os.path.dirname(os.path.abspath(path))
-        if self.params.cutout and self.params.shape != "auto":
+        if not getattr(self, "shape_user_set", False):
+            self.auto_outline_for_new_image()
+        elif self.params.cutout and self.params.shape != "auto":
             self.refit_shape(quiet=True)
         self.say(tr("msg.height_loaded", name=os.path.basename(path), w=h.orig_size[0], h=h.orig_size[1]), "ok")
         self.check_aspect()
@@ -284,7 +305,7 @@ class NimcaleApp:
         now = time.time()
         if interacting and not force and now - self.last_refresh < 0.06:
             return
-        res = self.pipeline.compute(self.hm, self.params, self.sculptor.layer, self.sculptor.rev)
+        res = self.pipeline.compute(self.hm, self.params, self.sculptor.layer, self.sculptor.rev, tex=self.tex)
         self.result = res
         if self.renderer is None:
             return
@@ -409,6 +430,10 @@ class NimcaleApp:
                 b = io.BytesIO()
                 np.save(b, self.hm.full.astype(np.float32))
                 z.writestr("heightmap.npy", b.getvalue())
+                if getattr(self.hm, "alpha_full", None) is not None:
+                    b = io.BytesIO()
+                    np.save(b, self.hm.alpha_full.astype(np.float32))
+                    z.writestr("heightmap_alpha.npy", b.getvalue())
                 if self.sculptor.has_edits():
                     b = io.BytesIO()
                     np.save(b, self.sculptor.layer.astype(np.float32))
@@ -431,11 +456,14 @@ class NimcaleApp:
                 tex_img.load()
                 hm_arr = np.load(io.BytesIO(z.read("heightmap.npy")))
                 sculpt = np.load(io.BytesIO(z.read("sculpt.npy"))) if "sculpt.npy" in z.namelist() else None
+                hm_alpha = np.load(io.BytesIO(z.read("heightmap_alpha.npy"))) \
+                    if "heightmap_alpha.npy" in z.namelist() else None
             self.commit_now()
             self.tex = images.TextureImage(tex_img.convert("RGB"), tuple(meta.get("tex_orig", tex_img.size)),
                                            meta.get("texture_name", ""))
             self.hm = images.HeightImage(hm_arr, tuple(meta.get("hm_orig", hm_arr.shape[::-1])),
-                                         meta.get("heightmap_name", ""))
+                                         meta.get("heightmap_name", ""), hm_alpha)
+            self.shape_user_set = True
             self.params = ModelParams.from_dict(meta.get("params", {}))
             self.view.update(meta.get("view", {}))
             self.sculptor.layer = sculpt.astype(np.float32) if sculpt is not None else None
@@ -472,6 +500,7 @@ class NimcaleApp:
     def reset_all(self):
         self.commit_now()
         self.params = coin_defaults(ModelParams())
+        self.shape_user_set = False
         self.refit_shape(quiet=True)
         self.view = ViewParams()
         self.sculptor.reset()

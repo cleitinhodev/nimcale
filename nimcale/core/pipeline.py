@@ -5,7 +5,7 @@ from scipy import ndimage as ndi
 
 from nimcale.core.images import resize_field
 from nimcale.core.orient import Orient
-from nimcale.core import shapes
+from nimcale.core import shapes, cutout
 
 
 def smoothstep(e0, e1, x):
@@ -42,7 +42,8 @@ def adjust_levels(g, p):
 
 
 class Result:
-    def __init__(self, hf, sdf, orient, mask_plate=None):
+    def __init__(self, hf, sdf, orient, mask_plate=None, info=None):
+        self.info = info or {}       # automatic outline: source / background used, coverage
         self.hf = hf                 # plate convention (row 0 = v 0), relief units (0..1 nominal)
         self.sdf = sdf               # plate units, > 0 inside the outline
         self.orient = orient
@@ -58,13 +59,18 @@ class Pipeline:
     """Cached height pipeline. compute() for the interactive preview, compute_hd() for exports."""
 
     SRC_KEYS = ("level_lo", "level_hi", "gamma", "brightness", "contrast", "invert", "threshold",
-                "blur", "detail", "detail_radius", "noise_amp", "noise_scale", "noise_seed")
+                "blur", "detail", "detail_radius", "noise_amp", "noise_scale", "noise_seed",
+                "outline_src", "bg_mode", "bg_r", "bg_g", "bg_b", "mask_smooth", "mask_grow", "fill_holes",
+                "min_island", "keep_largest")
+    TEX_KEYS = ("fit", "sx", "sy", "ox", "oy", "rot")    # only when the outline comes from the texture
     ORIENT_KEYS = ("crop_l", "crop_r", "crop_t", "crop_b", "rot90", "flip_x", "flip_y")
-    SHAPE_KEYS = ("cutout", "shape", "shape_cx", "shape_cy", "shape_rx", "shape_ry", "shape_round", "shape_rot")
+    SHAPE_KEYS = ("cutout", "shape", "shape_cx", "shape_cy", "shape_rx", "shape_ry", "shape_round", "shape_rot",
+                  "mask_feather")
     EDGE_KEYS = ("rim_width", "rim_height", "bevel")
 
     def __init__(self):
         self.cache = {}
+        self.last_info = {}
 
     def clear(self):
         self.cache.clear()
@@ -74,12 +80,15 @@ class Pipeline:
         return tuple(getattr(p, k) for k in keys)
 
     # ------------------------------------------------------------------ source space
-    def source_stage(self, raw, p, px_scale, need_mask):
+    def source_stage(self, raw, p, px_scale, need_mask, alpha=None, tex=None, src_wh=None):
         """raw: image-convention array at the target resolution. px_scale = pixels per original pixel."""
         g = adjust_levels(raw, p)
-        mask = None
+        mask, info = None, {}
         if need_mask or p.invert:
-            mask = shapes.clean_object_mask(g > p.threshold, close_px=2 * max(1.0, px_scale))
+            mask, info = cutout.object_mask(g, p, px_scale, alpha, tex, src_wh)
+            if not mask.any():                 # nothing detected: keep the whole plate instead of nothing
+                mask = np.ones_like(mask)
+        self.last_info = info
         if p.invert:
             g = ((1.0 - g) * mask).astype(np.float32)
         if p.blur > 0.05:
@@ -94,12 +103,13 @@ class Pipeline:
 
     # ------------------------------------------------------------------ plate space
     @staticmethod
-    def plate_stage(g, mask, p, o):
+    def plate_stage(g, mask, p, o, px_scale=1.0):
         hp = o.apply(g)
         h, w = hp.shape
         mask_p = o.apply(mask) if mask is not None else None
         if p.cutout and p.shape == "auto":
-            sdf = shapes.mask_sdf(mask_p if mask_p is not None else np.ones_like(hp, bool), o.size)
+            sdf = shapes.mask_sdf(mask_p if mask_p is not None else np.ones_like(hp, bool), o.size,
+                                  soft=0.8 + max(0.0, p.mask_feather) * px_scale)
         else:
             X, Y = shapes.plate_coords(h, w, o.size)
             sdf = shapes.shape_sdf(p, X, Y, o.size)
@@ -116,13 +126,23 @@ class Pipeline:
         return np.clip(hp, 0.0, 4.0).astype(np.float32)
 
     # ------------------------------------------------------------------ preview
-    def compute(self, hm, p, sculpt=None, sculpt_rev=0):
+    @staticmethod
+    def uses_texture(p, tex):
+        return tex is not None and p.cutout and p.shape == "auto" and \
+            cutout.resolve_source(p, None, tex) in ("tex_alpha", "tex_color")
+
+    def compute(self, hm, p, sculpt=None, sculpt_rev=0, tex=None):
         need_mask = p.cutout and p.shape == "auto"
-        kA = (id(hm), self._k(p, self.SRC_KEYS), need_mask)
+        use_tex = self.uses_texture(p, tex)
+        kA = (id(hm), self._k(p, self.SRC_KEYS), need_mask,
+              (id(tex), self._k(p, self.TEX_KEYS), self._k(p, self.ORIENT_KEYS)) if use_tex else None)
         c = self.cache
+        px = hm.work.shape[1] / float(max(1, hm.orig_size[0]))
         if c.get("kA") != kA:
-            px = hm.work.shape[1] / float(max(1, hm.orig_size[0]))
-            c["gA"], c["mask"] = self.source_stage(hm.work, p, px, need_mask)
+            h0, w0 = hm.work.shape
+            c["gA"], c["mask"] = self.source_stage(hm.work, p, px, need_mask, getattr(hm, "alpha", None),
+                                                   tex if use_tex else None, (w0, h0))
+            c["info"] = dict(self.last_info)
             c["kA"] = kA
             c.pop("kS", None)
         kS = (kA, id(sculpt), sculpt_rev)
@@ -139,7 +159,8 @@ class Pipeline:
                 hp = o.apply(c["gS"])
                 mask_p = o.apply(c["mask"]) if c["mask"] is not None else None
                 if p.cutout and p.shape == "auto":
-                    sdf = shapes.mask_sdf(mask_p if mask_p is not None else np.ones_like(hp, bool), o.size)
+                    sdf = shapes.mask_sdf(mask_p if mask_p is not None else np.ones_like(hp, bool), o.size,
+                                          soft=0.8 + max(0.0, p.mask_feather) * px)
                 else:
                     X, Y = shapes.plate_coords(hp.shape[0], hp.shape[1], o.size)
                     sdf = shapes.shape_sdf(p, X, Y, o.size)
@@ -147,7 +168,7 @@ class Pipeline:
             else:
                 hp = o.apply(c["gS"])
             hf = self.edge_stage(hp, c["sdf"], p)
-            c["res"] = Result(hf, c["sdf"], o, c["mask_p"])
+            c["res"] = Result(hf, c["sdf"], o, c["mask_p"], c.get("info"))
             c["kP"] = kP
             c["rev"] = c.get("rev", 0) + 1
         return c["res"]
@@ -166,7 +187,7 @@ class Pipeline:
         f = float(longest_nodes) / float(max(ph, pw))
         return max(8, int(round(w0 * f))), max(8, int(round(h0 * f))), f
 
-    def compute_hd(self, hm, p, longest_nodes, sculpt=None, method="bicubic"):
+    def compute_hd(self, hm, p, longest_nodes, sculpt=None, method="bicubic", tex=None):
         w, h, f = self.hd_source_dims(hm, p, longest_nodes)
         fh, fw = hm.full.shape
         if abs(f - 1.0) < 1e-6:
@@ -178,27 +199,34 @@ class Pipeline:
         raw = np.clip(raw, 0.0, 1.0)
         px = w / float(max(1, hm.orig_size[0]))
         need_mask = p.cutout and p.shape == "auto"
-        g, mask = self.source_stage(raw, p, px, need_mask)
+        alpha = getattr(hm, "alpha_full", None)
+        if alpha is not None:
+            alpha = np.clip(resize_field(alpha, (w, h), "bilinear"), 0.0, 1.0)
+        h0, w0 = hm.work.shape
+        g, mask = self.source_stage(raw, p, px, need_mask, alpha, tex if self.uses_texture(p, tex) else None,
+                                    (w0, h0))
+        info = dict(self.last_info)
         if sculpt is not None:
             g = g + (sculpt if sculpt.shape == g.shape else resize_field(sculpt, (w, h), method))
         o = Orient(p, w, h)
-        hp, sdf, mask_p = self.plate_stage(g, mask, p, o)
-        return Result(hp, sdf, o, mask_p)
+        hp, sdf, mask_p = self.plate_stage(g, mask, p, o, px)
+        return Result(hp, sdf, o, mask_p, info)
 
 
-def object_mask_plate(hm, p):
-    """Cleaned threshold mask of the object in plate convention (for shape fitting)."""
+def object_mask_plate(hm, p, tex=None):
+    """Cleaned object mask in plate convention (for shape fitting) - same detection as the auto outline."""
     px = hm.work.shape[1] / float(max(1, hm.orig_size[0]))
     g = adjust_levels(hm.work, p)
-    m = shapes.clean_object_mask(g > p.threshold, close_px=2 * max(1.0, px))
+    h0, w0 = g.shape
+    m, _ = cutout.object_mask(g, p, px, getattr(hm, "alpha", None), tex, (w0, h0))
     h, w = m.shape
     o = Orient(p, w, h)
     return o.apply(m), o.size
 
 
-def fit_shape_params(hm, p, shape=None):
+def fit_shape_params(hm, p, shape=None, tex=None):
     shape = shape or p.shape
-    m, size = object_mask_plate(hm, p)
+    m, size = object_mask_plate(hm, p, tex)
     cx, cy, rx, ry = shapes.fit_shape(m, size, shape if shape != "auto" else "ellipse")
     return cx, cy, rx, ry
 
