@@ -322,11 +322,21 @@ def selftest():
         t1 = time.time()
         sm = S.load_surface(sample_path("mug"))
         tm = trimesh.Trimesh(sm.V, sm.F, process=False)
-        fmts = []
+        fmts, bad = [], []
         for ext in (".obj", ".stl", ".ply", ".glb", ".gltf", ".3mf", ".off", ".dae"):
             fp = os.path.join(tempfile.gettempdir(), "nimcale_selftest_srf" + ext)
-            tm.export(fp)
-            fmts.append("%s:%d" % (ext[1:], S.load_surface(fp).n_faces))
+            try:
+                tm.export(fp)
+                fmts.append("%s:%d" % (ext[1:], S.load_surface(fp).n_faces))
+            except Exception as e:  # noqa: BLE001
+                import traceback
+                where = traceback.extract_tb(e.__traceback__)[-3:]
+                bad.append("%s -> %r at %s" % (ext, e, " / ".join("%s:%d" % (os.path.basename(f.filename), f.lineno)
+                                                                  for f in where)))
+        for b in bad:
+            print("selftest surface format FAILED:", b)
+        if bad:
+            ok = False
         sr = S.SurfaceBuilder().build(sm, p, res, max_faces=60_000)
         from PIL import Image
         welded, _split, _atlas = S.export_meshes(sr, Image.new("RGB", (8, 8)), (0.8, 0.8, 0.8))
