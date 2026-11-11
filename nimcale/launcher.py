@@ -241,7 +241,7 @@ def selftest():
     path = os.path.join(tempfile.gettempdir(), "nimcale_selftest.stl")
     formats.write_stl(path, m.scaled(p.size_mm))
     print("selftest: %d triangles, watertight=%s, %.1fs -> %s" % (len(m.F), closed, time.time() - t0, path))
-    return 0 if closed else 1
+    return 0 if closed["watertight"] else 1
 
 
 # ---------------------------------------------------------------------------- main

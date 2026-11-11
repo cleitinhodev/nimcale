@@ -47,16 +47,26 @@ class Panels:
         req = getattr(app, "props_tab_req", None)
         app.props_tab_req = None
         if imgui.begin_tab_bar("##props_tabs", imgui.TabBarFlags_.fitting_policy_shrink | imgui.TabBarFlags_.no_tooltip):
-            for key, icon, fn in (("tab.model", fa.ICON_FA_MOUNTAIN, self.tab_model),
-                                  ("tab.shape", fa.ICON_FA_COINS, self.tab_shape),
-                                  ("tab.texture", fa.ICON_FA_IMAGE, self.tab_texture),
-                                  ("tab.sculpt", fa.ICON_FA_PAINTBRUSH, self.tab_sculpt),
-                                  ("tab.scene", fa.ICON_FA_LIGHTBULB, self.tab_scene)):
+            tabs = (("tab.model", fa.ICON_FA_MOUNTAIN, self.tab_model),
+                    ("tab.shape", fa.ICON_FA_COINS, self.tab_shape),
+                    ("tab.texture", fa.ICON_FA_IMAGE, self.tab_texture),
+                    ("tab.sculpt", fa.ICON_FA_PAINTBRUSH, self.tab_sculpt),
+                    ("tab.scene", fa.ICON_FA_LIGHTBULB, self.tab_scene))
+            cur = getattr(self, "cur_tab", "tab.model")
+            # the selected tab shows its name when everything fits; otherwise every tab is icon-only
+            st = imgui.get_style()
+            pad = st.frame_padding.x * 2 + st.item_inner_spacing.x + 2
+
+            def width(t):
+                return imgui.calc_text_size(t).x + pad
+            need = sum(width(" %s " % ic) for _, ic, _ in tabs) - width(" %s " % fa.ICON_FA_MOUNTAIN) \
+                + width("%s  %s" % (fa.ICON_FA_MOUNTAIN, tr(cur)))
+            show_name = need <= imgui.get_content_region_avail().x
+            for key, icon, fn in tabs:
                 flags = imgui.TabItemFlags_.set_selected if req == key.split(".")[1] else 0
-                cur = getattr(self, "cur_tab", "tab.model")
-                text = "%s  %s" % (icon, tr(key)) if cur == key else " %s " % icon
+                text = "%s  %s" % (icon, tr(key)) if (cur == key and show_name) else " %s " % icon
                 sel, _ = imgui.begin_tab_item("%s###%s" % (text, key), None, flags)
-                if cur != key:
+                if cur != key or not show_name:
                     W.tooltip(tr(key))
                 if sel:
                     self.cur_tab = key

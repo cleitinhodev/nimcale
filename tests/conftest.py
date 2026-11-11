@@ -7,7 +7,8 @@ import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-os.environ.setdefault("NIMCALE_CONFIG_DIR", tempfile.mkdtemp(prefix="nimcale_cfg_"))
+# never touch the real settings (or the CI settings folder used by the smoke tests)
+os.environ["NIMCALE_CONFIG_DIR"] = tempfile.mkdtemp(prefix="nimcale_cfg_")
 
 
 @pytest.fixture(scope="session")
