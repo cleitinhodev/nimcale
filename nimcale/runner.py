@@ -20,6 +20,21 @@ from nimcale.ui.shell import Shell
 from nimcale.ui.viewport import Viewport
 
 
+def set_glfw_icons(glfw, win):
+    """Linux / X11: window + taskbar icon (Wayland compositors use the .desktop file's icon instead)."""
+    try:
+        from PIL import Image
+        imgs = []
+        for name, size in (("nimcale_icon_512.png", 128), ("nimcale_icon_64.png", 64), ("nimcale_window_256.png", 32)):
+            p = paths.asset("icons", name)
+            if os.path.isfile(p):
+                imgs.append(Image.open(p).convert("RGBA").resize((size, size), Image.LANCZOS))
+        if imgs:
+            glfw.set_window_icon(win, len(imgs), imgs)
+    except Exception as e:
+        print("window icon:", e, flush=True)
+
+
 def set_windows_icons(hwnd):
     """Small title-bar icon = favicon, big (taskbar / Alt+Tab) icon = main icon."""
     import ctypes
@@ -88,6 +103,8 @@ class Runner:
             glfw.set_drop_callback(win, self.drop_cb)
             if sys.platform == "win32":
                 set_windows_icons(glfw.get_win32_window(win))
+            else:
+                set_glfw_icons(glfw, win)
             self.titlebar.attach_glfw(win)
         except Exception as e:
             print("window setup:", e, flush=True)
@@ -263,7 +280,6 @@ class Runner:
         from nimcale import IS_TEST_BUILD
         if IS_TEST_BUILD:
             try:
-                from nimcale.i18n import tr
                 rp.app_window_params.window_title += " - " + tr("beta.badge")
             except Exception:
                 pass

@@ -1,9 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 # SPDX-License-Identifier: GPL-3.0-or-later
-# PyInstaller spec for Nimcale (Windows one-folder build: dist/Nimcale/Nimcale.exe).
-# Usage:  python scripts/fetch_mesa.py && pyinstaller --noconfirm nimcale.spec
+# PyInstaller spec for Nimcale (one-folder build):
+# Windows: dist/Nimcale/Nimcale.exe  (python scripts/fetch_mesa.py && pyinstaller --noconfirm nimcale.spec)
+# Linux:   dist/Nimcale/Nimcale      (pyinstaller --noconfirm nimcale.spec && scripts/package_linux.sh)
 import os
+import sys
 import imgui_bundle
+
+WIN = sys.platform == "win32"
 
 ROOT = os.path.abspath(SPECPATH)
 IB = os.path.dirname(imgui_bundle.__file__)
@@ -30,7 +34,7 @@ if not any(os.path.basename(b[0]).lower().startswith(("glfw3", "libglfw")) for b
 # Mesa llvmpipe software OpenGL (optional). Kept in its own "mesa" folder so the real GPU driver
 # is used by default; Nimcale loads it only in software mode.
 mesa = os.path.join(ROOT, "third_party", "mesa")
-if os.path.isdir(mesa):
+if WIN and os.path.isdir(mesa):
     for f in os.listdir(mesa):
         datas.append((os.path.join(mesa, f), "mesa"))
 
@@ -52,6 +56,9 @@ a = Analysis(
               "imgui_bundle.demos_python", "pydantic"],
     noarchive=False,
 )
+if not WIN:
+    # use the system C++ runtime: the user's Mesa / GPU drivers need it at least as new as they were built with
+    a.binaries = [b for b in a.binaries if not os.path.basename(b[0]).startswith(("libstdc++.so", "libgcc_s.so"))]
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
@@ -59,8 +66,8 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="Nimcale",
-    icon=os.path.join(ROOT, "nimcale", "assets", "icons", "nimcale.ico"),
-    version=os.path.join(ROOT, "scripts", "version_info.txt"),
+    icon=os.path.join(ROOT, "nimcale", "assets", "icons", "nimcale.ico") if WIN else None,
+    version=os.path.join(ROOT, "scripts", "version_info.txt") if WIN else None,
     console=False,
     debug=False,
     strip=False,

@@ -77,3 +77,19 @@ def unique_path(folder, stem, ext):
         if not os.path.exists(p):
             return p
         n += 1
+
+
+def host_env():
+    """Environment for launching system programs (xdg-open, zenity, gsettings, xprop...).
+
+    The frozen Linux build runs with LD_LIBRARY_PATH pointing at its bundled libraries; system programs
+    must get the user's original value back (PyInstaller keeps it in *_ORIG), or they may fail to start."""
+    env = dict(os.environ)
+    if is_frozen() and not sys.platform.startswith(("win", "darwin")):
+        for k in ("LD_LIBRARY_PATH", "LD_PRELOAD"):
+            orig = env.pop(k + "_ORIG", None)
+            if orig is not None:
+                env[k] = orig
+            else:
+                env.pop(k, None)
+    return env

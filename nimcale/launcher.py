@@ -77,6 +77,19 @@ def message_box(title, text, yes_no=False):
             return r == 6
         except Exception:
             pass
+    elif sys.platform.startswith("linux") and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        import shutil
+        env = paths.host_env()
+        try:
+            if shutil.which("zenity"):
+                cmd = ["zenity", "--question" if yes_no else "--error", "--title", title, "--text", text, "--width", "460"]
+            elif shutil.which("kdialog"):
+                cmd = ["kdialog", "--title", title, "--yesno" if yes_no else "--error", text]
+            else:
+                return False
+            return subprocess.run(cmd, env=env, timeout=600).returncode == 0 and yes_no
+        except Exception:
+            pass
     return False
 
 
@@ -273,7 +286,7 @@ def choose_renderer(a, cfg):
     lock = os.path.join(paths.config_dir(), LOCK_NAME)
     crashed = os.path.exists(lock)
     if crashed or cfg.gl_status not in ("ok",):
-        if sys.platform == "win32" or os.environ.get("NIMCALE_FORCE_PROBE"):
+        if sys.platform != "darwin" or os.environ.get("NIMCALE_FORCE_PROBE"):
             res, out = run_probe(False)
             print("GPU probe:", res, out, flush=True)
             if res in ("fail", "crash"):

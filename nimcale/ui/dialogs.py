@@ -613,6 +613,13 @@ class Dialogs:
 
 def open_url(url):
     try:
+        if sys.platform.startswith("linux"):
+            import shutil
+            import subprocess
+            if shutil.which("xdg-open"):
+                subprocess.Popen(["xdg-open", url], env=paths.host_env(), stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
+                return
         webbrowser.open(url)
     except Exception:
         pass
@@ -627,6 +634,7 @@ def open_folder(path):
             subprocess.Popen(["open", path])
         else:
             import subprocess
-            subprocess.Popen(["xdg-open", path])
+            subprocess.Popen(["xdg-open", path], env=paths.host_env(), stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
     except Exception:
         pass

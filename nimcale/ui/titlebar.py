@@ -57,13 +57,18 @@ def _mac_dark():
         return None
 
 
+def _env():
+    from nimcale import paths
+    return paths.host_env()
+
+
 def _linux_dark():
     if os.environ.get("GTK_THEME"):
         return "dark" in os.environ["GTK_THEME"].lower()
     for key in (("org.gnome.desktop.interface", "color-scheme"), ("org.gnome.desktop.interface", "gtk-theme")):
         try:
             out = subprocess.run(["gsettings", "get", key[0], key[1]], capture_output=True, text=True,
-                                 timeout=2).stdout.strip().lower()
+                                 timeout=2, env=_env()).stdout.strip().lower()
         except Exception:
             continue
         if out:
@@ -146,7 +151,8 @@ def apply_windows(hwnd, dark, theme_colors):
 def apply_x11(xid, dark):
     try:
         r = subprocess.run(["xprop", "-id", str(int(xid)), "-f", "_GTK_THEME_VARIANT", "8u", "-set",
-                            "_GTK_THEME_VARIANT", "dark" if dark else "light"], capture_output=True, timeout=3)
+                            "_GTK_THEME_VARIANT", "dark" if dark else "light"], capture_output=True, timeout=3,
+                           env=_env())
         return "x11-gtk-variant" if r.returncode == 0 else "unsupported"
     except Exception:
         return "unsupported"
