@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Nimcale - turn an image + height map into a 3D relief model (coins, plates, medals)."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0-beta.1"
 # test builds (pre-releases such as 1.1.0-beta.1) show a "test version" badge in the app; stable builds do not
 IS_TEST_BUILD = "beta" in __version__ or "alpha" in __version__ or "rc" in __version__
 APP_NAME = "Nimcale"

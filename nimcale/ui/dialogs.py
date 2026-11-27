@@ -514,7 +514,7 @@ class Dialogs:
         ("Ctrl+Z", "sc.undo"), ("Ctrl+Y / Ctrl+Shift+Z", "sc.redo"), ("R", "sc.reset_all"), ("K", "sc.sculpt"),
         ("sc.group_view", None),
         ("Tab", "sc.panels"), ("T", "sc.mode"), ("B", "sc.cutout"), ("F", "sc.wire"), ("U", "sc.light"),
-        ("Space", "sc.turntable"), ("1 / 2 / 3 / 4", "sc.views"), ("Ctrl+R", "sc.reset_cam"), ("F11", "sc.fullscreen"),
+        ("Space", "sc.turntable"), ("1 / 2 / 3 / 4", "sc.views"), ("H / 5", "sc.flip"), ("Ctrl+R", "sc.reset_cam"), ("F11", "sc.fullscreen"),
         ("F1", "sc.help"), ("Esc", "sc.escape"), ("Ctrl+Q", "sc.quit"),
         ("sc.group_relief", None),
         ("+ / -", "sc.depth"), ("9 / 0", "sc.thickness"), (", / .", "sc.blur"), ("[ / ]", "sc.threshold"),
@@ -546,7 +546,7 @@ class Dialogs:
 
     def tab_guide(self):
         imgui.push_text_wrap_pos(0)
-        for i in range(1, 10):
+        for i in range(1, 11):
             k = "guide.%d" % i
             imgui.text_colored(theme.v4(theme.PINK), "%d." % i)
             imgui.same_line()

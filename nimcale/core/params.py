@@ -110,6 +110,44 @@ class ModelParams:
     srf_r: float = 0.86           # model colour where the image does not cover it
     srf_g: float = 0.84
     srf_b: float = 0.88
+    # --- back side "Verso" (core/back.py); positions are plate units as seen from the back
+    bk_mode: str = "flat"         # flat | mirror | coin2 | hollow | ribs
+    bk_depth: float = 0.03        # back relief height (mirror / coin2), fraction of the longest side
+    bk_invert: bool = False       # coin2: invert the back height map
+    bk_wall: float = 2.0          # hollow / ribs: rim (wall) thickness, mm
+    bk_top: float = 1.2           # hollow / ribs: roof thickness under the front relief, mm
+    bk_ribs: str = "honeycomb"    # grid | honeycomb | lines
+    bk_cell: float = 8.0          # rib cell size, mm
+    bk_rib: float = 1.2           # rib thickness, mm
+    bk_rib_angle: float = 0.0     # degrees
+    bk_hole: bool = False         # keychain through hole
+    bk_hole_x: float = 0.0
+    bk_hole_y: float = 0.36
+    bk_hole_d: float = 4.0        # mm
+    bk_magnet: bool = False       # magnet recess
+    bk_mag_x: float = 0.0
+    bk_mag_y: float = 0.0
+    bk_mag_d: float = 10.0        # mm
+    bk_mag_depth: float = 2.0     # mm
+    bk_hang: bool = False         # keyhole hanger recess (wall hanging)
+    bk_hang_x: float = 0.0
+    bk_hang_y: float = 0.2
+    bk_hang_d: float = 8.0        # head diameter, mm
+    bk_hang_slot: float = 4.0     # slot width, mm
+    bk_hang_len: float = 6.0      # slot length, mm
+    bk_hang_depth: float = 2.5    # mm
+    bk_text: str = ""             # engraved / embossed text on the back
+    bk_text_mode: str = "engrave"  # engrave | emboss
+    bk_text_size: float = 4.0     # letter height, mm
+    bk_text_depth: float = 0.6    # mm
+    bk_text_x: float = 0.0
+    bk_text_y: float = 0.0
+    bk_text_rot: float = 0.0      # degrees
+    bk_stand: bool = False        # stand: flat cut at the bottom + wedge behind
+    bk_stand_cut: float = 3.0     # mm cut from the bottom of the outline
+    bk_stand_depth: float = 8.0   # wedge thickness at the bottom edge, mm
+    bk_stand_h: float = 14.0      # wedge height, mm
+    bk_chamfer: float = 0.0       # 45 degree chamfer of the back edge, mm
 
     def copy(self):
         return ModelParams(**asdict(self))
@@ -158,6 +196,13 @@ class ModelParams:
             self.srf_fit = "stretch"
         if self.srf_up not in ("auto", "z", "y", "x"):
             self.srf_up = "auto"
+        from nimcale.core.back import BACK_MODES, RIB_PATTERNS, TEXT_MODES
+        if self.bk_mode not in BACK_MODES:
+            self.bk_mode = "flat"
+        if self.bk_ribs not in RIB_PATTERNS:
+            self.bk_ribs = "honeycomb"
+        if self.bk_text_mode not in TEXT_MODES:
+            self.bk_text_mode = "engrave"
 
     def align_dict(self):
         return dict(fit=self.fit, sx=self.sx, sy=self.sy, ox=self.ox, oy=self.oy, rot=self.rot)

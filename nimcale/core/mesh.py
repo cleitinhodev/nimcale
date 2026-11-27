@@ -59,6 +59,32 @@ def clean_cells(cells):
     return c
 
 
+def fix_diagonals(cells):
+    """Remove diagonal-only contacts without filling holes (used once through holes are cut)."""
+    c = np.ascontiguousarray(cells, dtype=bool).copy()
+    for _ in range(64):
+        a = c[:-1, :-1]; b = c[:-1, 1:]; cc = c[1:, :-1]; d = c[1:, 1:]
+        fix = (a & d & ~b & ~cc) | (b & cc & ~a & ~d)
+        if not fix.any():
+            break
+        c[:-1, :-1] |= fix; c[:-1, 1:] |= fix; c[1:, :-1] |= fix; c[1:, 1:] |= fix
+    return c
+
+
+def solid_cells(sdf, nx, ny, holes=None):
+    """Cells of the solid: the cleaned outline, minus the through holes (back side) if any."""
+    cells = clean_cells(cell_mask(sdf, nx, ny))
+    if holes is not None:
+        c2 = fix_diagonals(cells & cell_mask(holes, nx, ny))
+        if c2.any():
+            cells = c2
+    return cells
+
+
+def snap_field(sdf, holes=None):
+    return sdf if holes is None else np.minimum(sdf, holes)
+
+
 def _run_ends(row):
     """Vertex x positions where a run of True cells starts or ends."""
     d = np.diff(np.concatenate(([0], row.astype(np.int8), [0])))
@@ -224,8 +250,11 @@ class Mesh:
         return int(len(self.P))
 
     def scaled(self, k):
-        return Mesh(self.P * np.float32(k), self.F, self.UV, self.VN, self.n_front, self.n_wall, self.n_bottom,
-                    self.size)
+        m = Mesh(self.P * np.float32(k), self.F, self.UV, self.VN, self.n_front, self.n_wall, self.n_bottom,
+                 self.size)
+        m.nv_front = getattr(self, "nv_front", None)
+        m.back_boundary = getattr(self, "back_boundary", None)
+        return m
 
     def face_normals(self):
         tri = self.P[self.F]
@@ -243,11 +272,14 @@ def front_normals(Z, size):
     return N
 
 
-def build_solid(hf, sdf, size, depth, thick, res=None, snap=True, progress=None):
+def build_solid(hf, sdf, size, depth, thick, res=None, snap=True, progress=None, zb=None, holes=None):
     """Build the watertight solid.
 
     hf, sdf : plate-convention fields (same shape), hf in relief units, sdf in plate units.
     res     : cells on the longest side (None = one node per height-field sample).
+    zb      : optional back surface (absolute z, plate units, same shape): the back is then a full grid
+              (mirror of the front topology) instead of the flat zipper bottom.
+    holes   : optional field > 0 outside the through holes.
     """
     def prog(f, msg=""):
         if progress:
@@ -259,18 +291,21 @@ def build_solid(hf, sdf, size, depth, thick, res=None, snap=True, progress=None)
     else:
         nx, ny = grid_dims(W, H, res)
     prog(0.02, "outline")
-    cells = clean_cells(cell_mask(sdf, nx, ny))
+    cells = solid_cells(sdf, nx, ny, holes)
     if cells.sum() == 0:
         raise ValueError("empty outline")
     prog(0.10, "topology")
     topo = Topology(cells)
+    grid_back = zb is not None
+    if grid_back:
+        topo.bottom = topo.front[:, ::-1].copy()      # same triangles, reversed (facing -z)
     U, V = topo.node_uv()
     if snap:
-        snap_boundary(topo, U, V, sdf, size)
+        snap_boundary(topo, U, V, snap_field(sdf, holes), size)
     prog(0.35, "vertices")
     direct = (nx == W - 1 and ny == H - 1)
     used_f = np.unique(topo.front)
-    used_b = np.unique(topo.bottom) if len(topo.bottom) else np.unique(topo.bedges)
+    used_b = used_f if grid_back else (np.unique(topo.bottom) if len(topo.bottom) else np.unique(topo.bedges))
     if direct:
         Zgrid = hf.astype(np.float32) * np.float32(depth)
         Nf_grid = front_normals(Zgrid, size).reshape(-1, 3)
@@ -296,7 +331,12 @@ def build_solid(hf, sdf, size, depth, thick, res=None, snap=True, progress=None)
     Pf = np.stack([Xf, Yf, Zf.astype(np.float32)], 1)
     Xb = ((U[used_b] - 0.5) * sw).astype(np.float32)
     Yb = ((V[used_b] - 0.5) * sh).astype(np.float32)
-    Pb = np.stack([Xb, Yb, np.full_like(Xb, -float(thick))], 1)
+    if grid_back:
+        Zb = sample_nodes(zb, U[used_b], V[used_b]).astype(np.float32)
+        Zb = np.minimum(Zb, Pf[:, 2] - np.float32(1e-5))        # never through the front (same node order)
+        Pb = np.stack([Xb, Yb, Zb], 1)
+    else:
+        Pb = np.stack([Xb, Yb, np.full_like(Xb, -float(thick))], 1)
     n_nodes = len(U)
     rf = np.full(n_nodes, -1, np.int64); rf[used_f] = np.arange(len(used_f))
     rb = np.full(n_nodes, -1, np.int64); rb[used_b] = np.arange(len(used_b)) + len(used_f)
@@ -306,13 +346,37 @@ def build_solid(hf, sdf, size, depth, thick, res=None, snap=True, progress=None)
     Fb = rb[topo.bottom]
     P = np.concatenate([Pf, Pb])
     UV = np.concatenate([np.stack([U[used_f], V[used_f]], 1), np.stack([U[used_b], V[used_b]], 1)]).astype(np.float32)
-    VN = np.concatenate([Nf, np.tile(np.array([[0, 0, -1]], np.float32), (len(Pb), 1))])
+    if grid_back:
+        Zbg = sample_nodes(zb, (np.arange(nx + 1) / nx)[None, :].repeat(ny + 1, 0),
+                           (np.arange(ny + 1) / ny)[:, None].repeat(nx + 1, 1)).astype(np.float32)
+        Nb = front_normals(Zbg, size).reshape(-1, 3)[used_b]
+        Nb = -Nb
+        del Zbg
+    else:
+        Nb = np.tile(np.array([[0, 0, -1]], np.float32), (len(Pb), 1))
+    VN = np.concatenate([Nf, Nb])
     F = np.concatenate([Ff, Fw, Fb])
     if F.min() < 0:
         raise RuntimeError("internal mesh error (unmapped vertex)")
     F = F.astype(np.uint32 if len(P) < 2 ** 32 else np.int64)
     prog(0.95, "done")
-    return Mesh(P.astype(np.float32), F, UV, VN.astype(np.float32), len(Ff), len(Fw), len(Fb), size)
+    m = Mesh(P.astype(np.float32), F, UV, VN.astype(np.float32), len(Ff), len(Fw), len(Fb), size)
+    m.nv_front = len(Pf)
+    m.back_boundary = rb[np.unique(topo.bedges)] if grid_back else None
+    return m
+
+
+def atlas_uv(m):
+    """UVs for a (front | back) texture atlas: front in the left half, back grid in the right half.
+    The back boundary ring keeps the front coordinates so the side walls show the front edge colour."""
+    UV = m.UV.copy()
+    UV[:, 0] *= 0.5
+    if getattr(m, "back_boundary", None) is not None:
+        nf = m.nv_front
+        back = np.arange(nf, len(UV))
+        UV[back, 0] += 0.5
+        UV[m.back_boundary, 0] -= 0.5
+    return UV
 
 
 # ---------------------------------------------------------------------------- analysis
@@ -342,7 +406,7 @@ def volume(P, F):
     return float(np.einsum("ij,ij->i", tri[:, 0], np.cross(tri[:, 1], tri[:, 2])).sum() / 6.0)
 
 
-def estimate_triangles(sdf, res=None):
+def estimate_triangles(sdf, res=None, grid_back=False):
     """Estimated triangle count of build_solid (cheap)."""
     H, W = sdf.shape
     if res is None:
@@ -353,7 +417,7 @@ def estimate_triangles(sdf, res=None):
     frac = float((small > 0).mean())
     cells = frac * nx * ny
     perim = 4.0 * np.sqrt(max(cells, 1.0)) * 1.2
-    return int(2 * cells + 2 * perim + 2 * perim + 2 * ny)
+    return int((4 if grid_back else 2) * cells + 2 * perim + 2 * perim + 2 * ny)
 
 
 def decimate(mesh, target_reduction, progress=None):

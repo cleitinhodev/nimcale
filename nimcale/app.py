@@ -55,6 +55,8 @@ class NimcaleApp:
         self.view = ViewParams()
         self.hm = None
         self.tex = None
+        self.back_tex = None             # back side "heads and tails": own texture / height map (None = reuse front)
+        self.back_hm = None
         self.surface = None              # imported 3D model (surface layer); None = normal plate / coin
         self.surface_builder = None
         self.surface_result = None
@@ -294,6 +296,113 @@ class NimcaleApp:
         self.surface_result = self.surface_builder.build(self.surface, self.params, self.result)
         return self.surface_result
 
+    # ======================================================================== back side ("Verso")
+    def import_back_texture(self, path, commit=True):
+        try:
+            t = images.load_texture(path)
+        except Exception as e:
+            self.say(tr("msg.open_error", err=str(e)), "error")
+            return False
+        if commit:
+            self.commit_now()
+        self.back_tex = t
+        if self.params.bk_mode not in ("coin2",):
+            self.params.bk_mode = "coin2"
+        self.say(tr("msg.back_texture_loaded", name=os.path.basename(path)), "ok")
+        self.dirty = True
+        return True
+
+    def import_back_heightmap(self, path, commit=True):
+        try:
+            h = images.load_heightmap(path)
+        except Exception as e:
+            self.say(tr("msg.open_error", err=str(e)), "error")
+            return False
+        if commit:
+            self.commit_now()
+        self.back_hm = h
+        if self.params.bk_mode not in ("coin2",):
+            self.params.bk_mode = "coin2"
+        self.say(tr("msg.back_height_loaded", name=os.path.basename(path)), "ok")
+        self.dirty = True
+        return True
+
+    def back_use_front(self):
+        """Heads and tails: forget the back images (the back reuses the front, mirrored)."""
+        if self.back_tex is None and self.back_hm is None:
+            return False
+        self.commit_now()
+        self.back_tex = self.back_hm = None
+        self.dirty = True
+        return True
+
+    def flip_view(self):
+        """Turn the model around (show the back / the front again)."""
+        v = self.view
+        v.yaw = (v.yaw + math.pi) % (2 * math.pi)
+        if v.yaw > math.pi:
+            v.yaw -= 2 * math.pi
+        return True
+
+    def showing_back(self):
+        return math.cos(self.view.yaw + math.radians(self.turn_angle)) < 0.0
+
+    def back_defaults(self):
+        """Place the hole / magnet / hanger / text at sensible spots of the current outline."""
+        from nimcale.core import back
+        if self.result is not None:
+            back.default_positions(self.params, self.result)
+        return True
+
+    def back_extra_thickness(self):
+        """mm of base thickness missing for the deepest recess (0 when everything fits)."""
+        p, res = self.params, self.result
+        if res is None or res.zb is None:
+            return 0.0
+        need = 0.0
+        if p.bk_magnet:
+            need = max(need, p.bk_mag_depth)
+        if p.bk_hang:
+            need = max(need, p.bk_hang_depth)
+        if p.bk_text.strip() and p.bk_text_mode == "engrave":
+            need = max(need, p.bk_text_depth)
+        from nimcale.core.back import MIN_GAP_MM
+        have = p.thickness * p.size_mm
+        return max(0.0, need + MIN_GAP_MM + 0.2 - have)
+
+    def back_preset(self, name):
+        from nimcale.core import back
+        self.commit_now()
+        p = self.params
+        d = ModelParams()
+        for k in back.KEYS:
+            if k.startswith("bk_"):
+                setattr(p, k, getattr(d, k))
+        mm = max(1e-6, p.size_mm)
+        if name == "coin":
+            p.bk_mode = "mirror"
+        elif name == "keychain":
+            p.bk_hole = True
+            p.bk_chamfer = 0.4
+            p.thickness = max(p.thickness, 2.0 / mm)
+        elif name == "magnet":
+            p.bk_magnet = True
+            p.thickness = max(p.thickness, (p.bk_mag_depth + 1.2) / mm)
+        elif name == "wall":
+            p.bk_mode = "ribs"
+            p.bk_hang = True
+            p.thickness = max(p.thickness, (p.bk_hang_depth + 1.0) / mm)
+        elif name == "stand":
+            p.bk_stand = True
+            p.bk_chamfer = 0.0
+        elif name == "light":
+            p.bk_mode = "hollow"
+            p.thickness = max(p.thickness, 2.4 / mm)
+        self.back_defaults()
+        self.say(tr("msg.back_preset", name=tr("bkp." + name)), "ok")
+        self.dirty = True
+        return True
+
     def check_aspect(self):
         if self.tex is None or self.hm is None:
             return
@@ -341,7 +450,8 @@ class NimcaleApp:
 
     # ======================================================================== undo / redo
     def snapshot(self, label=""):
-        return Snapshot(self.params, self.sculptor.layer, self.tex, self.hm, label, self.surface)
+        return Snapshot(self.params, self.sculptor.layer, self.tex, self.hm, label, self.surface,
+                        (self.back_tex, self.back_hm))
 
     def restore(self, s):
         self.params = s.params.copy()
@@ -349,6 +459,7 @@ class NimcaleApp:
         self.sculptor.rev += 1
         self.tex = s.tex
         self.hm = s.hm
+        self.back_tex, self.back_hm = s.back if s.back is not None else (None, None)
         if s.surface is not self.surface:
             self.surface = s.surface
             self.surface_builder = None
@@ -414,25 +525,29 @@ class NimcaleApp:
         now = time.time()
         if interacting and not force and now - self.last_refresh < 0.06:
             return
-        res = self.pipeline.compute(self.hm, self.params, self.sculptor.layer, self.sculptor.rev, tex=self.tex)
+        res = self.pipeline.compute(self.hm, self.params, self.sculptor.layer, self.sculptor.rev, tex=self.tex,
+                                    back=self.surface is None, back_hm=self.back_hm)
         self.result = res
         sr = self.update_surface(interacting)
         if self.renderer is None:
             return
         rev = self.pipeline.revision
         p = self.params
-        tkey = (id(res.sdf), p.mesh_res, p.smooth_edge, res.hf.shape)
+        grid_back = res.zb is not None
+        tkey = (id(res.sdf), id(res.holes), grid_back, p.mesh_res, p.smooth_edge, res.hf.shape)
         if tkey != self.topo_key:
             hh, ww = res.hf.shape
             nx, ny = meshmod.grid_dims(ww, hh, p.mesh_res)
-            cells = meshmod.clean_cells(meshmod.cell_mask(res.sdf, nx, ny))
+            cells = meshmod.solid_cells(res.sdf, nx, ny, res.holes)
             if not cells.any():
                 cells[:] = True
             topo = meshmod.Topology(cells)
             U, V = topo.node_uv()
             if p.smooth_edge:
-                meshmod.snap_boundary(topo, U, V, res.sdf, res.size)
-            self.renderer.set_topology(topo, U.astype(np.float32), V.astype(np.float32), res.size)
+                if grid_back:
+                    topo.bottom = topo.front[:, ::-1]
+                meshmod.snap_boundary(topo, U, V, meshmod.snap_field(res.sdf, res.holes), res.size)
+            self.renderer.set_topology(topo, U.astype(np.float32), V.astype(np.float32), res.size, grid_back=grid_back)
             self.topo = topo
             self.topo_key = tkey
             self.update_stats()
@@ -448,6 +563,20 @@ class NimcaleApp:
             self.ao = cavity_ao(res.hf, res.size, p.depth) if self.view.ao > 0.001 else np.ones_like(res.hf)
             self.ao_rev = rev
             self.renderer.set_field(res.hf, self.ao)
+        zb = res.zb if self.surface is None else None
+        if zb is not getattr(self, "_zb_uploaded", None):
+            if zb is not None:
+                ao_b = cavity_ao(-zb, res.size, 1.0) if self.view.ao > 0.001 else None
+                mode = 1 if p.bk_mode == "mirror" else (2 if (p.bk_mode == "coin2" and self.back_tex is not None) else
+                                                         (1 if p.bk_mode == "coin2" else 0))
+                self.renderer.set_back(zb, ao_b, mode, p.bk_depth if p.bk_mode in ("mirror", "coin2") else 0.03)
+            else:
+                self.renderer.set_back(None)
+            self._zb_uploaded = zb
+            self.update_stats()
+        if self.back_tex is not getattr(self, "_back_tex_uploaded", None):
+            self.renderer.set_back_texture(self.back_tex.img if self.back_tex is not None else None)
+            self._back_tex_uploaded = self.back_tex
         if sr is not self._surface_uploaded:
             self.renderer.set_surface(sr)
             self._surface_uploaded = sr
@@ -492,12 +621,18 @@ class NimcaleApp:
         area_frac = float(inside.mean())
         mean_h = float(res.hf[inside].mean()) if inside.any() else 0.0
         vol = area_frac * sw * sh * (p.thickness + mean_h * p.depth) * mm ** 3   # mm^3
+        zmin = -p.thickness
+        if res.zb is not None:
+            solid = inside if res.holes is None else (inside & (res.holes > 0))
+            th = (res.hf * np.float32(p.depth) - res.zb)[solid]
+            vol = float(th.sum()) * (sw / max(1, ww - 1)) * (sh / max(1, hh - 1)) * mm ** 3
+            zmin = float(res.zb[solid].min()) if solid.any() else zmin
         self.stats = dict(w=(x1 - x0) * mm, h=(y1 - y0) * mm, relief=hmax * p.depth * mm,
-                          base=p.thickness * mm, total=(hmax * p.depth + p.thickness) * mm,
+                          base=p.thickness * mm, total=(hmax * p.depth - zmin) * mm,
                           volume=vol, tris=getattr(self.renderer, "n_tris", 0),
-                          cells=self.topo.cells.shape,
-                          bbox=((x0 - sw / 2, y0 - sh / 2, -p.thickness), (x1 - sw / 2, y1 - sh / 2,
-                                                                         hmax * p.depth)))
+                          cells=self.topo.cells.shape, back=res.zb is not None,
+                          bbox=((x0 - sw / 2, y0 - sh / 2, zmin), (x1 - sw / 2, y1 - sh / 2,
+                                                                hmax * p.depth)))
 
     # ======================================================================== scene / rendering
     def scene(self, t):
@@ -506,8 +641,11 @@ class NimcaleApp:
         brush = None
         if self.tool == "sculpt" and self.brush_uv is not None:
             brush = (self.brush_uv[0], self.brush_uv[1], self.sculptor.radius, 1.0)
+        bb = self.stats.get("bbox")
         return dict(params=self.params, view=self.view, size=res.size, orient=res.orient, time=t,
                     surface=self.surface_result is not None,
+                    back=res.zb is not None and self.surface_result is None,
+                    z0=bb[0][2] if bb else -self.params.thickness,
                     anim_bg=anim, brush=brush, bbox=self.stats.get("bbox"),
                     grid_step=10.0 / max(1.0, self.params.size_mm))
 
@@ -544,6 +682,8 @@ class NimcaleApp:
         try:
             with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
                 meta = dict(app=APP_NAME, version=__version__, params=self.params.to_dict(),
+                            back_names=[os.path.basename(getattr(self.back_tex, "path", "") or ""),
+                                        os.path.basename(getattr(self.back_hm, "path", "") or "")],
                             view=self.view.to_dict(), texture_name=os.path.basename(self.tex.path or "texture.png"),
                             heightmap_name=os.path.basename(self.hm.path or "heightmap.png"),
                             tex_orig=list(self.tex.orig_size), hm_orig=list(self.hm.orig_size))
@@ -571,6 +711,14 @@ class NimcaleApp:
                     b = io.BytesIO()
                     np.save(b, self.sculptor.layer.astype(np.float32))
                     z.writestr("sculpt.npy", b.getvalue())
+                if self.back_tex is not None:
+                    b = io.BytesIO()
+                    self.back_tex.img.save(b, "PNG")
+                    z.writestr("back_texture.png", b.getvalue())
+                if self.back_hm is not None:
+                    b = io.BytesIO()
+                    np.save(b, self.back_hm.full.astype(np.float32))
+                    z.writestr("back_heightmap.npy", b.getvalue())
             self.project_path = path
             self.dirty = False
             self.cfg.add_recent(path)
@@ -591,6 +739,16 @@ class NimcaleApp:
                 sculpt = np.load(io.BytesIO(z.read("sculpt.npy"))) if "sculpt.npy" in z.namelist() else None
                 hm_alpha = np.load(io.BytesIO(z.read("heightmap_alpha.npy"))) \
                     if "heightmap_alpha.npy" in z.namelist() else None
+                back_tex = back_hm = None
+                names = z.namelist()
+                bn = meta.get("back_names", ["", ""])
+                if "back_texture.png" in names:
+                    bi = Image.open(io.BytesIO(z.read("back_texture.png")))
+                    bi.load()
+                    back_tex = images.TextureImage(bi.convert("RGB"), bi.size, bn[0] if bn else "")
+                if "back_heightmap.npy" in names:
+                    ba = np.load(io.BytesIO(z.read("back_heightmap.npy")))
+                    back_hm = images.HeightImage(ba, ba.shape[::-1], bn[1] if len(bn) > 1 else "")
                 surf = None
                 if "surface.npz" in z.namelist():
                     from nimcale.core.surface import SurfaceModel
@@ -612,6 +770,7 @@ class NimcaleApp:
             self.sculptor.rev += 1
             self.surface = surf
             self.surface_builder = None
+            self.back_tex, self.back_hm = back_tex, back_hm
             self.project_path = path
             self.dirty = False
             self.cfg.add_recent(path)
@@ -644,6 +803,7 @@ class NimcaleApp:
     def reset_all(self):
         self.commit_now()
         self.surface = None
+        self.back_tex = self.back_hm = None
         self.params = coin_defaults(ModelParams())
         self.shape_user_set = False
         self.refit_shape(quiet=True)
@@ -655,4 +815,5 @@ class NimcaleApp:
         return dict(hm=self.hm, tex=self.tex, params=self.params.copy(),
                     sculpt=self.sculptor.layer.copy() if self.sculptor.layer is not None else None,
                     preview_result=self.result, outcol=border_color(self.tex.img), mix=self.view.mix,
-                    surface=self.surface, surface_result=self.surface_result)
+                    surface=self.surface, surface_result=self.surface_result,
+                    back_tex=self.back_tex, back_hm=self.back_hm)

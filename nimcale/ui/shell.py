@@ -15,6 +15,7 @@ from nimcale.ui import theme, widgets as W
 from nimcale.ui import filedialog
 
 K = imgui.Key
+BACK_PRESETS = ("coin", "keychain", "magnet", "wall", "stand", "light")
 
 
 class Shell:
@@ -140,6 +141,23 @@ class Shell:
                 app.say(tr("msg.sculpt_cleared"))
         elif act.startswith("preset."):
             self.preset(act[7:])
+        elif act == "flip_view":
+            app.flip_view()
+        elif act.startswith("bkp."):
+            app.back_preset(act[4:])
+        elif act == "back_defaults":
+            app.commit_now()
+            app.back_defaults()
+        elif act == "back_fit_thick":
+            app.commit_now()
+            p.thickness = min(0.35, p.thickness + max(0.0, app.back_extra_thickness()) / max(1e-6, p.size_mm))
+        elif act == "back_front":
+            app.back_use_front()
+        elif act in ("back_tex", "back_hm"):
+            f = filedialog.open_file(tr("dlg.open_back_texture" if act == "back_tex" else "dlg.open_back_heightmap"),
+                                     img_f, folder)
+            if f:
+                (app.import_back_texture if act == "back_tex" else app.import_back_heightmap)(f)
         elif act == "toggle_panels":
             vis = not app.show["props"]
             app.show["props"] = app.show["inspector"] = vis
@@ -290,6 +308,7 @@ class Shell:
             if imgui.menu_item(tr("menu.panels"), "Tab", app.show["props"])[0]:
                 app.pending.append("toggle_panels")
             item(tr("act.reset_cam"), "reset_cam", "Ctrl+R")
+            item("%s  %s" % (fa.ICON_FA_ROTATE, tr("bk.flip")), "flip_view", "H")
             item(tr("sc.fullscreen"), "fullscreen", "F11")
             imgui.end_menu()
         if imgui.begin_menu(tr("menu.tools")):
@@ -298,6 +317,10 @@ class Shell:
             imgui.separator()
             for k in ("coin", "medal", "plate", "outline", "tile"):
                 item(tr("preset." + k), "preset." + k)
+            if imgui.begin_menu("%s  %s" % (fa.ICON_FA_ROTATE, tr("bk.presets"))):
+                for k in BACK_PRESETS:
+                    item(tr("bkp." + k), "bkp." + k)
+                imgui.end_menu()
             imgui.end_menu()
         if imgui.begin_menu(tr("menu.help")):
             item("%s  %s" % (fa.ICON_FA_KEYBOARD, tr("about.tab_shortcuts")), "help", "F1")
@@ -494,6 +517,8 @@ class Shell:
             app.pending.append("shot")
         if pressed(K.k):
             app.toggle_sculpt()
+        if pressed(K.h) or pressed(K._5):
+            app.pending.append("flip_view")
         if pressed(K.space):
             v.turntable = not v.turntable
         for k, name in ((K._1, "front"), (K._2, "iso"), (K._3, "side"), (K._4, "top")):

@@ -39,6 +39,10 @@ class Renderer:
         self.line_vbo = ctx.buffer(reserve=4096 * 7 * 4, dynamic=True)
         self.line_vao = ctx.vertex_array(self.lprog, [(self.line_vbo, "3f 4f", "in_pos", "in_col")])
         self.height_tex = None
+        self.back_tex = None             # back side field (None = classic flat back)
+        self.back_color = None           # own back texture (heads and tails)
+        self.back_mode = 0
+        self.back_depth = 0.03
         self.hdim = (2.0, 2.0)
         self.color_tex = None
         self.outcol = (1.0, 1.0, 1.0)
@@ -80,7 +84,40 @@ class Renderer:
             self.height_tex.repeat_x = self.height_tex.repeat_y = False
         self.hdim = (float(w), float(h))
 
-    def set_topology(self, topo, U, V, size):
+    def set_back(self, zb, ao=None, mode=0, depth=0.03):
+        """Back side field (absolute z, plate units) or None for the flat back."""
+        if zb is None:
+            if self.back_tex is not None:
+                self.back_tex.release()
+            self.back_tex = None
+            return
+        h, w = zb.shape
+        a = np.ones_like(zb) if ao is None else ao
+        data = np.ascontiguousarray(np.stack([zb, a], -1), dtype=np.float32)
+        if self.back_tex is not None and self.back_tex.size == (w, h):
+            self.back_tex.write(data.tobytes())
+        else:
+            if self.back_tex is not None:
+                self.back_tex.release()
+            self.back_tex = self.ctx.texture((w, h), 2, data.tobytes(), dtype="f4")
+            self.back_tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
+            self.back_tex.repeat_x = self.back_tex.repeat_y = False
+        self.back_mode = int(mode)
+        self.back_depth = float(depth)
+
+    def set_back_texture(self, img):
+        if self.back_color is not None:
+            self.back_color.release()
+            self.back_color = None
+        if img is None:
+            return
+        data = np.asarray(img.transpose(Image.FLIP_TOP_BOTTOM).convert("RGB"), dtype=np.uint8)
+        self.back_color = self.ctx.texture(img.size, 3, np.ascontiguousarray(data).tobytes())
+        self.back_color.build_mipmaps()
+        self.back_color.filter = (moderngl.LINEAR_MIPMAP_LINEAR, moderngl.LINEAR)
+        self.back_color.repeat_x = self.back_color.repeat_y = False
+
+    def set_topology(self, topo, U, V, size, grid_back=False):
         for b in self.bufs:
             b.release()
         self.bufs = []
@@ -103,7 +140,7 @@ class Renderer:
             self.vaos[name] = self.ctx.vertex_array(self.prog, vb_fmt or fmt, ibo)
             self.counts[name] = len(idx)
         add("front", topo.front)
-        add("bottom", topo.bottom)
+        add("bottom", topo.front[:, ::-1] if grid_back else topo.bottom)
         # walls: quads (a_top, b_top, b_bottom, a_bottom) with outward normals from the (snapped) edge
         a, b = topo.bedges[:, 0], topo.bedges[:, 1]
         sw, sh = size
@@ -285,12 +322,27 @@ class Renderer:
         _u(pr, "u_tex", 1)
         self.height_tex.use(0)
         self.color_tex.use(1)
+        hasback = self.back_tex is not None and s.get("back", False)
+        _u(pr, "u_hasback", 1 if hasback else 0)
+        _u(pr, "u_back", 2)
+        _u(pr, "u_backtex", 3)
+        if hasback:
+            self.back_tex.use(2)
+            mode = self.back_mode
+            if mode == 2 and self.back_color is None:
+                mode = 1
+            if mode == 2:
+                self.back_color.use(3)
+            else:
+                self.color_tex.use(3)
+            _u(pr, "u_backmode", int(mode))
+            _u(pr, "u_bdepth", float(max(1e-4, self.back_depth)))
         _u(pr, "u_kind", 0)
         self.vaos["front"].render(moderngl.TRIANGLES)
         if self.counts.get("walls"):
             _u(pr, "u_kind", 2)
             self.vaos["walls"].render(moderngl.TRIANGLES)
-        if self.counts.get("bottom") and cam.eye[2] < 0.05:
+        if self.counts.get("bottom") and (cam.eye[2] < 0.05 or hasback):
             _u(pr, "u_kind", 1)
             self.vaos["bottom"].render(moderngl.TRIANGLES)
         if v.wire and self.counts.get("wire"):

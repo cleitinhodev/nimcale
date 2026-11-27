@@ -49,6 +49,9 @@ class Result:
         self.orient = orient
         self.size = orient.size
         self.mask_plate = mask_plate
+        self.zb = None               # back side (core/back.py): absolute z of the back surface, or None = flat
+        self.holes = None            # > 0 outside the through holes, or None
+        self.back_info = {}
 
     @property
     def shape(self):
@@ -131,7 +134,29 @@ class Pipeline:
         return tex is not None and p.cutout and p.shape == "auto" and \
             cutout.resolve_source(p, None, tex) in ("tex_alpha", "tex_color")
 
-    def compute(self, hm, p, sculpt=None, sculpt_rev=0, tex=None):
+    @staticmethod
+    def with_back(res, p, back_hm=None):
+        """Result with the back side applied (a new Result; the front field is shared)."""
+        from nimcale.core import back
+        br = back.compute(res, p, back_hm if back.uses_back_image(p) else None)
+        r = Result(res.hf, br.sdf, res.orient, res.mask_plate, res.info)
+        r.zb, r.holes, r.back_info = br.zb, br.holes, br.info
+        r.front_sdf = res.sdf
+        return r
+
+    def compute(self, hm, p, sculpt=None, sculpt_rev=0, tex=None, back=True, back_hm=None):
+        res = self._compute_front(hm, p, sculpt, sculpt_rev, tex)
+        from nimcale.core import back as backmod
+        if not back or not backmod.is_active(p):
+            return res
+        c = self.cache
+        kB = (id(res), self._k(p, backmod.KEYS), id(back_hm) if backmod.uses_back_image(p) else None)
+        if c.get("kB") != kB:
+            c["resB"] = self.with_back(res, p, back_hm)
+            c["kB"] = kB
+        return c["resB"]
+
+    def _compute_front(self, hm, p, sculpt=None, sculpt_rev=0, tex=None):
         need_mask = p.cutout and p.shape == "auto"
         use_tex = self.uses_texture(p, tex)
         kA = (id(hm), self._k(p, self.SRC_KEYS), need_mask,
@@ -187,7 +212,14 @@ class Pipeline:
         f = float(longest_nodes) / float(max(ph, pw))
         return max(8, int(round(w0 * f))), max(8, int(round(h0 * f))), f
 
-    def compute_hd(self, hm, p, longest_nodes, sculpt=None, method="bicubic", tex=None):
+    def compute_hd(self, hm, p, longest_nodes, sculpt=None, method="bicubic", tex=None, back=True, back_hm=None):
+        res = self._compute_hd_front(hm, p, longest_nodes, sculpt, method, tex)
+        from nimcale.core import back as backmod
+        if back and backmod.is_active(p):
+            res = self.with_back(res, p, back_hm)
+        return res
+
+    def _compute_hd_front(self, hm, p, longest_nodes, sculpt=None, method="bicubic", tex=None):
         w, h, f = self.hd_source_dims(hm, p, longest_nodes)
         fh, fw = hm.full.shape
         if abs(f - 1.0) < 1e-6:

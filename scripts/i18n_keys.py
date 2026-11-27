@@ -14,7 +14,8 @@ sys.path.insert(0, ROOT)
 
 PREFIXES = ("about", "act", "bg", "brush", "dlg", "drop", "err", "exp", "file", "fit", "fmt", "guide", "hd",
             "interp", "m", "mat", "menu", "mode", "msg", "p", "preset", "sc", "sculpt", "sec", "set", "shape",
-            "stage", "status", "tab", "tip", "vp", "win", "srf", "beta", "proj", "axis", "sample", "cut", "fit")
+            "stage", "status", "tab", "tip", "vp", "win", "srf", "beta", "proj", "axis", "sample", "cut", "fit",
+            "bk", "bkm", "bkp", "bkr")
 
 
 def used_keys():
@@ -53,6 +54,14 @@ def used_keys():
     for k in ("coin", "medal", "plate", "outline", "tile"):
         keys.update({"preset." + k, "preset.%s.tip" % k})
     keys.update("guide.%d" % i for i in range(1, 8))
+    keys.add("guide.10")
+    from nimcale.core.back import BACK_MODES, RIB_PATTERNS
+    from nimcale.ui.shell import BACK_PRESETS
+    for m in BACK_MODES:
+        keys.update({"bkm." + m, "bkm.%s.tip" % m})
+    keys.update("bkr." + r for r in RIB_PATTERNS)
+    for k in BACK_PRESETS:
+        keys.update({"bkp." + k, "bkp.%s.tip" % k})
     keys.discard("preset.")
     return sorted(k for k in keys if not k.endswith("."))
 

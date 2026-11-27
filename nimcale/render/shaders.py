@@ -10,6 +10,8 @@ uniform float u_hscale;
 uniform float u_thick;
 uniform vec2  u_size;
 uniform int   u_kind;      // 0 front, 1 bottom, 2 walls, 3 wire overlay
+uniform sampler2D u_back;  // back side: r = absolute z of the back surface, g = cavity AO
+uniform int   u_hasback;
 in vec2  in_uv;
 in float in_top;
 in vec3  in_nrm;
@@ -21,7 +23,7 @@ vec2 node(vec2 uv) { return (uv * (u_hdim - 1.0) + 0.5) / u_hdim; }
 void main() {
     float top = (u_kind == 0 || u_kind == 3) ? 1.0 : ((u_kind == 1) ? 0.0 : in_top);
     float h = textureLod(u_height, node(in_uv), 0.0).r;
-    float z = (top > 0.5) ? h * u_hscale : -u_thick;
+    float z = (top > 0.5) ? h * u_hscale : ((u_hasback == 1) ? textureLod(u_back, node(in_uv), 0.0).r : -u_thick);
     vec3 p = vec3((in_uv - 0.5) * u_size, z);
     v_uv = in_uv;
     v_pos = p;
@@ -63,6 +65,12 @@ uniform vec3  u_brushcol;
 uniform vec3  u_env_top;
 uniform vec3  u_env_bot;
 uniform vec4  u_wirecol;
+uniform sampler2D u_back;
+uniform sampler2D u_backtex;
+uniform int   u_hasback;
+uniform int   u_backmode;  // 0 plain, 1 mirrored front texture, 2 own back texture
+uniform float u_bdepth;
+uniform float u_thick;
 in vec2  v_uv;
 in vec3  v_pos;
 in vec3  v_nrm;
@@ -106,6 +114,25 @@ void main() {
         else if (u_mode == 1) base = vec3(0.80, 0.78, 0.82);
         else                  base = mix(tc, vec3(g), u_mix);
         ao = mix(1.0, hv.g, u_ao);
+    } else if (u_kind == 1 && u_hasback == 1) {
+        vec2 e = 1.0 / u_hdim;
+        vec2 bv = texture(u_back, nuv).rg;
+        float zl = texture(u_back, nuv - vec2(e.x, 0.0)).r;
+        float zr = texture(u_back, nuv + vec2(e.x, 0.0)).r;
+        float zd = texture(u_back, nuv - vec2(0.0, e.y)).r;
+        float zu = texture(u_back, nuv + vec2(0.0, e.y)).r;
+        float dzx = (zr - zl) / (2.0 * e.x * u_size.x);
+        float dzy = (zu - zd) / (2.0 * e.y * u_size.y);
+        n = normalize(vec3(dzx, dzy, -1.0));
+        float g = clamp((-u_thick - bv.r) / max(1e-6, u_bdepth), 0.0, 1.0);
+        vec3 plain = vec3(0.62, 0.60, 0.66);
+        vec3 bt = plain;
+        if (u_backmode == 1) bt = texcolor(vec2(1.0 - v_uv.x, v_uv.y));
+        else if (u_backmode == 2) bt = texture(u_backtex, vec2(1.0 - v_uv.x, v_uv.y)).rgb;
+        if (u_mode == 1 || u_backmode == 0) base = (u_backmode == 0) ? plain : vec3(0.80, 0.78, 0.82);
+        else if (u_mode == 0) base = bt;
+        else base = mix(bt, vec3(g), u_mix);
+        ao = mix(1.0, bv.g, u_ao);
     } else if (u_kind == 1) {
         n = vec3(0.0, 0.0, -1.0);
         base = vec3(0.42, 0.40, 0.45);

@@ -71,6 +71,7 @@ class Panels:
         if imgui.begin_tab_bar("##props_tabs", imgui.TabBarFlags_.fitting_policy_shrink | imgui.TabBarFlags_.no_tooltip):
             tabs = (("tab.model", fa.ICON_FA_MOUNTAIN, self.tab_model),
                     ("tab.shape", fa.ICON_FA_COINS, self.tab_shape),
+                    ("tab.back", fa.ICON_FA_ROTATE, self.tab_back),
                     ("tab.texture", fa.ICON_FA_IMAGE, self.tab_texture),
                     ("tab.surface", fa.ICON_FA_CUBE, self.tab_surface),
                     ("tab.sculpt", fa.ICON_FA_PAINTBRUSH, self.tab_sculpt),
@@ -580,6 +581,198 @@ class Panels:
         W.label(tr("sculpt.help"))
         imgui.pop_text_wrap_pos()
 
+    # ------------------------------------------------------------------ back side ("Verso")
+    BACK_MODE_ICONS = {"flat": fa.ICON_FA_SQUARE, "mirror": fa.ICON_FA_COINS, "coin2": fa.ICON_FA_CIRCLE_HALF_STROKE,
+                       "hollow": fa.ICON_FA_BOX_OPEN, "ribs": fa.ICON_FA_TABLE_CELLS}
+    BACK_PRESET_ICONS = {"coin": fa.ICON_FA_COINS, "keychain": fa.ICON_FA_KEY, "magnet": fa.ICON_FA_MAGNET,
+                         "wall": fa.ICON_FA_IMAGE_PORTRAIT, "stand": fa.ICON_FA_RULER_VERTICAL,
+                         "light": fa.ICON_FA_FEATHER}
+
+    def pos_sliders(self, uid, p, kx, ky):
+        mm = p.size_mm
+        hx = getattr(p, kx)
+        hy = getattr(p, ky)
+        setattr(p, kx, W.slider(uid + "_x", tr("bk.pos_x"), hx, -0.55, 0.55, getattr(D, kx), "%.1f mm", scale=mm,
+                                tip=tr("tip.bk_pos")))
+        setattr(p, ky, W.slider(uid + "_y", tr("bk.pos_y"), hy, -0.55, 0.55, getattr(D, ky), "%.1f mm", scale=mm,
+                                tip=tr("tip.bk_pos")))
+
+    def tab_back(self):
+        from nimcale.core.back import BACK_MODES, RIB_PATTERNS
+        from nimcale.ui.shell import BACK_PRESETS
+        app, p = self.app, self.app.params
+        mm = p.size_mm
+        imgui.push_text_wrap_pos(0)
+        if app.surface is not None:
+            imgui.text_colored(theme.v4(theme.WARN), "%s  %s" % (fa.ICON_FA_CIRCLE_INFO, tr("bk.surface_note")))
+            imgui.dummy(imgui.ImVec2(1, 4))
+        theme.section_title(tr("bk.title"), fa.ICON_FA_ROTATE)
+        W.label(tr("bk.intro"))
+        imgui.push_style_color(imgui.Col_.button, theme.v4((0.62, 0.22, 0.72), 1.0))
+        back_now = app.showing_back()
+        if W.wide_button("%s  %s" % (fa.ICON_FA_ROTATE, tr("bk.show_front") if back_now else tr("bk.flip")),
+                         "bk_flip", tip=tr("tip.bk_flip"), height=30):
+            app.pending.append("flip_view")
+        imgui.pop_style_color()
+        # ---- presets
+        theme.section_title(tr("bk.presets"), fa.ICON_FA_STAR)
+        avail = imgui.get_content_region_avail().x
+        n = len(BACK_PRESETS)
+        bw = (avail - 4 * (n - 1)) / float(n)
+        for i, k in enumerate(BACK_PRESETS):
+            if i:
+                imgui.same_line(0, 4)
+            if imgui.button("%s##bkp_%s" % (self.BACK_PRESET_ICONS[k], k), imgui.ImVec2(bw, 32)):
+                app.pending.append("bkp." + k)
+            W.tooltip(tr("bkp." + k) + "\n" + tr("bkp.%s.tip" % k))
+        # ---- mode
+        if header(tr("bk.mode"), fa.ICON_FA_LAYER_GROUP):
+            cols = 2
+            bw = (imgui.get_content_region_avail().x - 4) / 2.0
+            for i, m in enumerate(BACK_MODES):
+                if i % cols:
+                    imgui.same_line(0, 4)
+                sel = p.bk_mode == m
+                if sel:
+                    imgui.push_style_color(imgui.Col_.button, theme.v4((0.66, 0.26, 0.80), 1.0))
+                if imgui.button("%s  %s##bkm_%s" % (self.BACK_MODE_ICONS[m], tr("bkm." + m), m), imgui.ImVec2(bw, 28)):
+                    p.bk_mode = m
+                if sel:
+                    imgui.pop_style_color()
+                W.tooltip(tr("bkm.%s.tip" % m))
+            if p.bk_mode in ("mirror", "coin2"):
+                p.bk_depth = W.slider("bk_depth", tr("bk.depth"), p.bk_depth, 0.0, 0.35, D.bk_depth, "%.2f mm",
+                                      scale=mm, tip=tr("tip.bk_depth"))
+            if p.bk_mode == "coin2":
+                self.back_cards()
+                p.bk_invert = W.checkbox("bk_inv", tr("p.invert"), p.bk_invert)
+            if p.bk_mode in ("hollow", "ribs"):
+                p.bk_wall = W.slider("bk_wall", tr("bk.wall"), p.bk_wall, 0.4, 20.0, D.bk_wall, "%.1f mm",
+                                     tip=tr("tip.bk_wall"))
+                p.bk_top = W.slider("bk_top", tr("bk.top"), p.bk_top, 0.4, 10.0, D.bk_top, "%.1f mm",
+                                    tip=tr("tip.bk_top"))
+            if p.bk_mode == "ribs":
+                labels = [tr("bkr." + r) for r in RIB_PATTERNS]
+                k = W.segmented("bk_ribs", labels, RIB_PATTERNS.index(p.bk_ribs) if p.bk_ribs in RIB_PATTERNS else 1)
+                p.bk_ribs = RIB_PATTERNS[k]
+                p.bk_cell = W.slider("bk_cell", tr("bk.cell"), p.bk_cell, 2.0, 60.0, D.bk_cell, "%.1f mm", log=True)
+                p.bk_rib = W.slider("bk_rib", tr("bk.rib"), p.bk_rib, 0.4, 8.0, D.bk_rib, "%.1f mm")
+                p.bk_rib_angle = W.slider("bk_ang", tr("bk.angle"), p.bk_rib_angle, 0.0, 180.0, 0.0, "%.0f°")
+        # ---- fittings
+        if header(tr("bk.fittings"), fa.ICON_FA_SCREWDRIVER_WRENCH):
+            p.bk_hole = W.checkbox("bk_hole", "%s  %s" % (fa.ICON_FA_KEY, tr("bk.hole")), p.bk_hole, tip=tr("tip.bk_hole"))
+            if p.bk_hole:
+                imgui.indent(8)
+                p.bk_hole_d = W.slider("bk_hole_d", tr("bk.diameter"), p.bk_hole_d, 1.0, 20.0, D.bk_hole_d, "%.1f mm")
+                self.pos_sliders("bk_hole", p, "bk_hole_x", "bk_hole_y")
+                imgui.unindent(8)
+            p.bk_magnet = W.checkbox("bk_mag", "%s  %s" % (fa.ICON_FA_MAGNET, tr("bk.magnet")), p.bk_magnet,
+                                     tip=tr("tip.bk_magnet"))
+            if p.bk_magnet:
+                imgui.indent(8)
+                p.bk_mag_d = W.slider("bk_mag_d", tr("bk.diameter"), p.bk_mag_d, 2.0, 60.0, D.bk_mag_d, "%.1f mm")
+                p.bk_mag_depth = W.slider("bk_mag_h", tr("bk.recess_depth"), p.bk_mag_depth, 0.2, 10.0,
+                                          D.bk_mag_depth, "%.1f mm")
+                self.pos_sliders("bk_mag", p, "bk_mag_x", "bk_mag_y")
+                imgui.unindent(8)
+            p.bk_hang = W.checkbox("bk_hang", "%s  %s" % (fa.ICON_FA_IMAGE_PORTRAIT, tr("bk.hang")), p.bk_hang,
+                                   tip=tr("tip.bk_hang"))
+            if p.bk_hang:
+                imgui.indent(8)
+                p.bk_hang_d = W.slider("bk_hang_d", tr("bk.head"), p.bk_hang_d, 3.0, 20.0, D.bk_hang_d, "%.1f mm")
+                p.bk_hang_slot = W.slider("bk_hang_s", tr("bk.slot"), p.bk_hang_slot, 1.5, 12.0, D.bk_hang_slot,
+                                          "%.1f mm")
+                p.bk_hang_len = W.slider("bk_hang_l", tr("bk.slot_len"), p.bk_hang_len, 0.0, 30.0, D.bk_hang_len,
+                                         "%.1f mm")
+                p.bk_hang_depth = W.slider("bk_hang_h", tr("bk.recess_depth"), p.bk_hang_depth, 0.5, 10.0,
+                                           D.bk_hang_depth, "%.1f mm")
+                self.pos_sliders("bk_hang", p, "bk_hang_x", "bk_hang_y")
+                imgui.unindent(8)
+            if W.wide_button("%s  %s" % (fa.ICON_FA_CROSSHAIRS, tr("bk.auto_place")), "bk_place",
+                             tip=tr("tip.bk_auto_place")):
+                app.pending.append("back_defaults")
+        # ---- text
+        if header(tr("bk.text_title"), fa.ICON_FA_FONT, default_open=bool(p.bk_text)):
+            imgui.set_next_item_width(-1)
+            ch, txt = imgui.input_text_with_hint("##bk_text", tr("bk.text_hint"), p.bk_text)
+            if ch:
+                p.bk_text = txt[:80]
+            k = W.segmented("bk_tm", [tr("bk.engrave"), tr("bk.emboss")], 1 if p.bk_text_mode == "emboss" else 0)
+            p.bk_text_mode = "emboss" if k == 1 else "engrave"
+            p.bk_text_size = W.slider("bk_ts", tr("bk.text_size"), p.bk_text_size, 1.0, 60.0, D.bk_text_size,
+                                      "%.1f mm", log=True)
+            p.bk_text_depth = W.slider("bk_td", tr("bk.text_depth"), p.bk_text_depth, 0.1, 5.0, D.bk_text_depth,
+                                       "%.2f mm")
+            self.pos_sliders("bk_text", p, "bk_text_x", "bk_text_y")
+            p.bk_text_rot = W.slider("bk_tr", tr("bk.rotation"), p.bk_text_rot, -180.0, 180.0, 0.0, "%.0f°")
+        # ---- stand and finish
+        if header(tr("bk.finish"), fa.ICON_FA_RULER_VERTICAL, default_open=p.bk_stand or p.bk_chamfer > 0):
+            p.bk_stand = W.checkbox("bk_stand", tr("bk.stand"), p.bk_stand, tip=tr("tip.bk_stand"))
+            if p.bk_stand:
+                imgui.indent(8)
+                p.bk_stand_cut = W.slider("bk_sc", tr("bk.stand_cut"), p.bk_stand_cut, 0.0, 40.0, D.bk_stand_cut,
+                                          "%.1f mm")
+                p.bk_stand_depth = W.slider("bk_sd", tr("bk.stand_depth"), p.bk_stand_depth, 0.0, 40.0,
+                                            D.bk_stand_depth, "%.1f mm")
+                p.bk_stand_h = W.slider("bk_sh", tr("bk.stand_h"), p.bk_stand_h, 1.0, 120.0, D.bk_stand_h, "%.1f mm",
+                                        log=True)
+                imgui.unindent(8)
+            p.bk_chamfer = W.slider("bk_ch", tr("bk.chamfer"), p.bk_chamfer, 0.0, 3.0, 0.0, "%.2f mm",
+                                    tip=tr("tip.bk_chamfer"))
+        # ---- info
+        res = app.result
+        if res is not None and res.zb is not None:
+            theme.section_title(tr("bk.info"), fa.ICON_FA_CIRCLE_INFO)
+            inf = res.back_info or {}
+            st = app.stats or {}
+            W.kv_table("##bk_info", [
+                (tr("m.total"), "%.2f mm" % st.get("total", 0.0)),
+                (tr("bk.pocket"), "%.2f mm" % inf.get("pocket_max_mm", 0.0)),
+            ])
+            extra = app.back_extra_thickness()
+            if inf.get("clamped", 0.0) > 0.002 or extra > 0.05:
+                imgui.text_colored(theme.v4(theme.WARN), "%s  %s" % (fa.ICON_FA_TRIANGLE_EXCLAMATION,
+                                                                    tr("bk.too_thin", mm=extra)))
+                if extra > 0.05 and W.wide_button("%s  %s" % (fa.ICON_FA_ARROW_UP, tr("bk.fit_thick", mm=extra)),
+                                                  "bk_fit"):
+                    app.pending.append("back_fit_thick")
+            if p.bk_mode in ("hollow", "ribs"):
+                W.label(tr("bk.print_tip"))
+        imgui.pop_text_wrap_pos()
+
+    def back_cards(self):
+        app = self.app
+        avail = imgui.get_content_region_avail().x
+        sz = (avail - 10) / 2.0
+        for i, (key, title, obj, act) in enumerate((("thumb_btex", tr("bk.back_texture"), app.back_tex, "back_tex"),
+                                                    ("thumb_bhm", tr("bk.back_height"), app.back_hm, "back_hm"))):
+            if i:
+                imgui.same_line()
+            imgui.begin_group()
+            if obj is not None:
+                pil = obj.img if key == "thumb_btex" else \
+                    Image.fromarray((np.clip(obj.work, 0, 1) * 255).astype(np.uint8), "L")
+                if app.ui_textures.get(key + "_obj") is not obj:
+                    t = app.ui_textures.pop(key, None)
+                    if t is not None:
+                        t.release()
+                    app.ui_textures[key + "_obj"] = obj
+                t = ui_texture(app, key, pil)
+                asp = t.size[1] / float(t.size[0])
+                ih = min(sz, sz * asp)
+                if imgui.image_button("##" + key, imgui.ImTextureRef(t.glo), imgui.ImVec2(ih / asp, ih)):
+                    app.pending.append(act)
+            else:
+                if imgui.button("%s##%s" % (fa.ICON_FA_FILE_IMPORT, key), imgui.ImVec2(sz, sz * 0.6)):
+                    app.pending.append(act)
+            W.tooltip(tr("bk.click_import"))
+            imgui.text_colored(theme.v4(theme.LILAC), title)
+            W.label(os.path.basename(obj.path or "-")[:22] if obj is not None else tr("bk.same_as_front"))
+            imgui.end_group()
+        if app.back_tex is not None or app.back_hm is not None:
+            if W.wide_button("%s  %s" % (fa.ICON_FA_ARROW_RIGHT_ARROW_LEFT, tr("bk.use_front")), "bk_front"):
+                app.pending.append("back_front")
+
     # ------------------------------------------------------------------ scene
     def tab_scene(self):
         app, v = self.app, self.app.view
@@ -655,6 +848,7 @@ class Panels:
                 (tr("m.base"), "%.2f mm" % st["base"]),
                 (tr("m.volume"), "%.2f cm³" % vol_cm3),
                 (tr("m.pla"), "%.1f g" % (vol_cm3 * 1.24), theme.LILAC),
+                (tr("m.filament"), "%.2f m" % (st["volume"] / (math.pi * 0.875 ** 2) / 1000.0)),
                 (tr("m.silver"), "%.1f g" % (vol_cm3 * 10.49)),
                 (tr("m.gold"), "%.1f g" % (vol_cm3 * 19.32)),
             ])

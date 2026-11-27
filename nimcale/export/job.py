@@ -85,14 +85,16 @@ class ExportJob:
             return self._run_surface()
         self._set(0.01, "heightmap")
         if o.hd:
-            res = Pipeline().compute_hd(hm, p, o.hd_nodes, d.get("sculpt"), o.interp, tex=d.get("tex"))
+            res = Pipeline().compute_hd(hm, p, o.hd_nodes, d.get("sculpt"), o.interp, tex=d.get("tex"),
+                                        back_hm=d.get("back_hm"))
             cells = None
         else:
             res = d["preview_result"]
             cells = p.mesh_res
         self._set(0.15, "mesh")
         m = meshmod.build_solid(res.hf, res.sdf, res.size, p.depth, p.thickness, res=cells, snap=o.snap,
-                                progress=lambda f, s: self._set(0.15 + 0.30 * f, "mesh"))
+                                progress=lambda f, s: self._set(0.15 + 0.30 * f, "mesh"),
+                                zb=getattr(res, "zb", None), holes=getattr(res, "holes", None))
         report = {"triangles_full": m.n_tris}
         if o.decimate > 0.01:
             self._set(0.46, "simplify")
@@ -110,6 +112,13 @@ class ExportJob:
             self._set(0.62, "texture")
             tex = bake_texture(d["tex"], p, res.orient, o.tex_res, d.get("outcol", (1, 1, 1)),
                                hf=res.hf if o.tex_mix else None, mix=d.get("mix", 0.5) if o.tex_mix else 0.0)
+            if getattr(res, "zb", None) is not None and getattr(m, "back_boundary", None) is not None:
+                from nimcale.core import back as backmod
+                bb = backmod.back_bake(p, tex, d.get("back_tex"))
+                if bb is not None:                  # two-faced coin: front | back texture atlas
+                    tex = backmod.back_texture_atlas(tex, bb)
+                    m.UV = meshmod.atlas_uv(m)
+                    report["back_atlas"] = True
         self._set(0.66, "write")
         formats.write_mesh(fid, o.path, m, tex, progress=lambda f, s="": self._set(0.66 + 0.33 * f, "write"),
                            cancel=self.is_cancelled)
@@ -128,7 +137,8 @@ class ExportJob:
         p = d["params"]
         self._set(0.01, "heightmap")
         if o.hd:
-            res = Pipeline().compute_hd(d["hm"], p, o.hd_nodes, d.get("sculpt"), o.interp, tex=d.get("tex"))
+            res = Pipeline().compute_hd(d["hm"], p, o.hd_nodes, d.get("sculpt"), o.interp, tex=d.get("tex"),
+                                        back=False)
             self._set(0.12, "mesh")
             sr = srf.build_hd(d["surface"], p, res, o.hd_nodes)
         else:
@@ -177,7 +187,8 @@ class ExportJob:
         p = d["params"]
         self._set(0.05, "heightmap")
         if o.hd:
-            res = Pipeline().compute_hd(d["hm"], p, o.hd_nodes, d.get("sculpt"), o.interp, tex=d.get("tex"))
+            res = Pipeline().compute_hd(d["hm"], p, o.hd_nodes, d.get("sculpt"), o.interp, tex=d.get("tex"),
+                                        back=False)
         else:
             res = d["preview_result"]
         self._set(0.6, "write")
