@@ -57,7 +57,7 @@
   "axis.top": "top",
   "beta.about": "Test version (beta) - experimental features, may contain bugs.",
   "beta.badge": "TEST VERSION",
-  "beta.notice": "Test version (beta): the Surface feature is experimental. Keep using the stable version for important work.",
+  "beta.notice": "Test version (beta): the new Back tab is experimental. Keep using the stable version for important work.",
   "bg.auto": "Detect automatically",
   "bg.border": "Image border colour",
   "bg.color": "Picked colour",

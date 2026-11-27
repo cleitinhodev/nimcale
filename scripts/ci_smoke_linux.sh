@@ -60,7 +60,13 @@ done
 # 2) first start like a user (automatic renderer, default coin, no surface), then a second start
 run "first start" cfg_user "renderer:" "OpenGL:" "title bar: mode=system" "quit-after:" -- "$EXE" --quit-after 90
 run "second start (saved settings + layout)" cfg_user "renderer:" "OpenGL:" "quit-after:" -- "$EXE" --quit-after 90
-grep -q "beta" "$WORK/cfg_user/nimcale.log" && grep -q "Test version" "$WORK/cfg_user/nimcale.log" && FAILED+=("stable build shows the test-version notice")
+# the test-version notice must appear only in test builds (a "-" in the version, e.g. 1.2.0-beta.1)
+VER="$("$EXE" --version 2>/dev/null | tail -n 1)"
+if [[ "$VER" == *-* ]]; then
+    grep -q "Test version" "$WORK/cfg_user/nimcale.log" || FAILED+=("test build ($VER) does not show the test-version notice")
+else
+    grep -q "Test version" "$WORK/cfg_user/nimcale.log" && FAILED+=("stable build ($VER) shows the test-version notice")
+fi
 
 # 3) software renderer + screenshot of the main window
 run "software + screenshot" cfg_sw "renderer: software" "OpenGL:" "shot:" -- \
