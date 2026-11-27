@@ -201,6 +201,22 @@ def compute(res, p, back_hm=None):
             d = rib_distance(XB, Y, p, u)
             half = max(0.2, p.bk_rib) * 0.5 * u
             pm = pm * _sstep(half, half + e, d)
+        # solid pads (one rim wide) around the fittings and the text, so they sit in material, not in the void
+        wall = max(0.2, p.bk_wall) * u
+        keep = np.full((h, w), np.inf, np.float32)
+        if p.bk_hole:
+            keep = np.minimum(keep, np.hypot(XB - p.bk_hole_x, Y - p.bk_hole_y) - max(0.5, p.bk_hole_d) * 0.5 * u)
+        if p.bk_magnet:
+            keep = np.minimum(keep, np.hypot(XB - p.bk_mag_x, Y - p.bk_mag_y) - max(0.5, p.bk_mag_d) * 0.5 * u)
+        if p.bk_hang:
+            keep = np.minimum(keep, keyhole_sdf(XB, Y, p, u))
+        pm = pm * _sstep(wall, wall + e, keep)
+        if p.bk_text.strip():
+            tm = text_mask(p.bk_text, h, w, size, mm, p) > 0.3
+            if tm.any():
+                rad = max(1, int(round(wall / cell)))
+                pad = ndi.binary_dilation(tm, iterations=rad).astype(np.float32)
+                pm = pm * (1.0 - ndi.gaussian_filter(pad, 1.0))
         raise_ = np.maximum(raise_, pm * pocket)
     # ---- recesses
     if p.bk_magnet:

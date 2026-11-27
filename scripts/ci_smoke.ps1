@@ -70,9 +70,17 @@ $r = Invoke-Nimcale "software renderer + screenshot" @("--software", "--frames",
 Assert-CleanRun $r "software screenshot" @("renderer: software", "OpenGL:", "shot:")
 if (-not (Test-Path $shot)) { $failed += "no screenshot" }
 
+# 4b) back side ("Verso") in the GUI: ribbed back + keychain hole + text, model flipped, Back tab open
+$bshot = Join-Path $env:GITHUB_WORKSPACE "ci_shot_back.png"
+$r = Invoke-Nimcale "back side + screenshot" @("--frames", "40", "--size", "1440x900", "--props-tab", "back",
+    "--set", "bk_mode=ribs,bk_hole=1,bk_text=Nimcale", "--do", "call:flip_view", "--shot", $bshot) (Join-Path $Work "cfg_back")
+Assert-CleanRun $r "back side screenshot" @("OpenGL:", "call flip_view -> True", "shot:")
+if (-not (Test-Path $bshot)) { $failed += "no back-side screenshot" }
+
 # 5) non-GUI self test (mesh + STL)
 $r = Invoke-Nimcale "selftest" @("--selftest") (Join-Path $Work "cfg_self")
-Assert-CleanRun $r "selftest" @("'watertight': True", "selftest surface: obj:", "dae:", "watertight=True")
+Assert-CleanRun $r "selftest" @("'watertight': True", "selftest back: mode=mirror:True", "chamfer=0.5:True", "selftest surface: obj:", "dae:", "watertight=True")
+if ($r.Log.Contains(":False")) { $failed += "selftest back: a back mode is not watertight" }
 
 if ($failed.Count) { Write-Host "`nSMOKE TEST FAILURES:"; $failed | ForEach-Object { Write-Host " - $_" }; exit 1 }
 Write-Host "`nAll smoke tests passed."

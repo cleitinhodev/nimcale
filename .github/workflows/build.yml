@@ -69,7 +69,9 @@ jobs:
         if: always()
         with:
           name: ci-screenshot
-          path: ci_shot.png
+          path: |
+            ci_shot.png
+            ci_shot_back.png
           if-no-files-found: ignore
 
       - name: Attach to GitHub release

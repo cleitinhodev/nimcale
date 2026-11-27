@@ -78,8 +78,14 @@ run "surface sample" cfg_srf "Surface loaded" "shot:" -- \
     "$EXE" --surface mug --frames 40 --size 1440x900 --shot "$SHOTS/ci_shot_linux_surface.png"
 check_png "$SHOTS/ci_shot_linux_surface.png"
 
+# 4b) back side ("Verso") in the GUI: ribbed back + keychain hole + text, model flipped, Back tab open
+run "back side" cfg_back "call flip_view -> True" "shot:" -- \
+    "$EXE" --frames 40 --size 1440x900 --props-tab back --set "bk_mode=ribs,bk_hole=1,bk_text=Nimcale" \
+    --do "call:flip_view" --shot "$SHOTS/ci_shot_linux_back.png"
+check_png "$SHOTS/ci_shot_linux_back.png"
+
 # 5) non-GUI self test (plate mesh + every surface import format + watertight export)
-run "selftest" cfg_self "'watertight': True" "selftest surface: obj:" "dae:" "watertight=True" -- "$EXE" --selftest
+run "selftest" cfg_self "'watertight': True" "selftest back: mode=mirror:True" "chamfer=0.5:True" "selftest surface: obj:" "dae:" "watertight=True" -- "$EXE" --selftest
 
 # 6) the AppImage starts too (extract-and-run: no FUSE on CI runners)
 if [ -n "$APPIMAGE" ]; then

@@ -327,6 +327,25 @@ def selftest():
     formats.write_stl(path, m.scaled(p.size_mm))
     print("selftest: %d triangles, watertight=%s, %.1fs -> %s" % (len(m.F), closed, time.time() - t0, path))
     ok = closed["watertight"]
+    # back side ("Verso"): every mode + fittings + text (uses the bundled font) must stay one closed solid
+    try:
+        t1 = time.time()
+        modes = []
+        for kw in (dict(bk_mode="mirror"), dict(bk_mode="coin2"), dict(bk_mode="hollow", thickness=0.08),
+                   dict(bk_mode="ribs", bk_ribs="honeycomb", thickness=0.08),
+                   dict(bk_hole=True, bk_magnet=True, bk_hang=True, bk_text="Nimcale", thickness=0.1),
+                   dict(bk_text="OI", bk_text_mode="emboss", bk_stand=True, bk_chamfer=0.5)):
+            q = p.copy()
+            q.update(kw)
+            rb = Pipeline().compute(hm, q)
+            mb = meshmod.build_solid(rb.hf, rb.sdf, rb.size, q.depth, q.thickness, res=250, zb=rb.zb, holes=rb.holes)
+            cb = meshmod.check_closed(mb.F)["watertight"]
+            modes.append("%s:%s" % ("+".join("%s=%s" % (k[3:], v) for k, v in kw.items() if k.startswith("bk_")), cb))
+            ok = ok and cb
+        print("selftest back: %s, %.1fs" % (" ".join(modes), time.time() - t1))
+    except Exception as e:  # noqa: BLE001
+        print("selftest back FAILED: %r" % (e,))
+        ok = False
     # surface layer (test build): bundled samples + every import format through the frozen trimesh/collada
     try:
         import trimesh
