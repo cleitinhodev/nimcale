@@ -233,7 +233,7 @@ class Runner:
                     obj = app.view if hasattr(app.view, k) else app.params
                     cur = getattr(obj, k)
                     setattr(obj, k, type(cur)(float(v)) if not isinstance(cur, (str, bool)) else
-                            (v == "1" if isinstance(cur, bool) else v))
+                            (v.lower() in ("1", "true", "yes") if isinstance(cur, bool) else v))
                 elif act.startswith("call:"):
                     # call:method|arg1|arg2  (automated tests: save/open project, alignment, GIF...)
                     name, *args = act[5:].split("|")

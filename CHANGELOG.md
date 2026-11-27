@@ -3,6 +3,31 @@
 All notable changes to Nimcale are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/),
 versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.0-beta.1] - 2026-11-27 (test pre-release, branch dev/back-side)
+
+Test build. Everything from 1.1.0 is kept; the front of the piece is unchanged.
+
+### Added
+- **Back tab ("Verso")** for the plate / coin. The result is always one watertight solid, in every export
+  (HD included):
+  - back types: plain (default, as in 1.1), mirrored (two-faced coin, own depth), heads and tails (own back
+    texture + height map, reusing the front by default, optional invert), hollow with a rim (wall and roof
+    thickness) and ribbed (grid / honeycomb / lines, cell size, rib thickness, angle);
+  - fittings: keychain through-hole, magnet recess and keyhole wall hanger, with *Place automatically*;
+  - engraved or embossed text (bundled font, size, depth, position, rotation, multi-line), readable from the back;
+  - stand (flat cut + wedge so the piece stands on a table) and back-edge chamfer;
+  - back presets (two-faced coin, keychain, fridge magnet, wall frame, desk stand, light), *Flip model*
+    (H / 5, View menu), a thin-base warning with *Thicken the base*, and PLA filament length in the Inspector.
+- Back settings and back images are undoable and saved in `.nimcale` projects (old projects open with a plain
+  back); textured OBJ / glTF / 3MF exports get a front | back texture atlas.
+- Translations of the new strings in all 12 languages; guide and shortcut table updated.
+- Tests: every back mode is checked for watertight, consistently wound meshes at preview resolution and in HD
+  exports, plus export formats, through-holes, parameter round trips and old projects.
+
+### Known limitations
+- The keyhole hanger has no undercut; the hollow / ribbed roof is an overhang (print front up or with supports).
+- The back is ignored while a Surface is active; HD decimation drops the back texture.
+
 ## [1.1.0] - 2026-11-11
 
 Stable. Promotes the 1.1.0-beta.1 test build (Surface layer) to the stable version and adds a Linux build.
